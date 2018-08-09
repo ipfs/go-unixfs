@@ -32,9 +32,9 @@
     },
     {
       "author": "why",
-      "hash": "QmeVFsd5aE3U2N9ivM7MniNynZA82RqCgEMEpDgTowCnHK",
+      "hash": "QmXkZeJmx4c3ddjw81DQMUpM1e5LjAack5idzZYWUb2qAJ",
       "name": "go-merkledag",
-      "version": "1.0.5"
+      "version": "1.0.6"
     },
     {
       "author": "hector",
@@ -50,9 +50,9 @@
     },
     {
       "author": "hsanjuan",
-      "hash": "QmVDjhUMtkRskBFAVNwyXuLSKbeAya7JKPnzAxMKDaK4x4",
+      "hash": "Qmc3UwSvJkntxu2gKDPCqJEzmhqVeJtTbrVxJm6tsdmMF1",
       "name": "go-ipfs-chunker",
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "author": "whyrusleeping",
@@ -78,6 +78,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.0.5"
+  "version": "1.0.6"
 }
 

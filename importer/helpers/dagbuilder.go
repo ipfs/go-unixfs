@@ -246,6 +246,25 @@ func (db *DagBuilderHelper) FillNodeLayer(node *UnixfsNode) error {
 	return nil
 }
 
+// FillFSNodeLayer do the same thing as FillNodeLayer.
+func (db *DagBuilderHelper) FillFSNodeLayer(node *FSNodeOverDag) error {
+
+	// while we have room AND we're not done
+	for node.NumChildren() < db.maxlinks && !db.Done() {
+		//TODO size
+		child, childFileSize, err := db.NewLeafDataNode(ft.TRaw)
+		if err != nil {
+			return err
+		}
+
+		if err := node.AddChild(child, childFileSize, db); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // GetNextDataNode builds a UnixFsNode with the data obtained from the
 // Splitter, given the constraints (BlockSizeLimit, RawLeaves) specified
 // when creating the DagBuilderHelper.

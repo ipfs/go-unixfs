@@ -32,9 +32,9 @@
     },
     {
       "author": "why",
-      "hash": "QmeLG6jF1xvEmHca5Vy4q4EdQWp8Xq9S6EPyZrN9wvSRLC",
+      "hash": "QmRDaC5z6yXkXTTSWzaxs2sSVBon5RRCN6eNtMmpuHtKCr",
       "name": "go-merkledag",
-      "version": "1.0.12"
+      "version": "1.0.13"
     },
     {
       "author": "hector",
@@ -78,6 +78,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.0.14"
+  "version": "1.0.15"
 }
 

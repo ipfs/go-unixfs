@@ -24,6 +24,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
+	"sync"
 
 	dag "github.com/ipfs/go-merkledag"
 	format "github.com/ipfs/go-unixfs"
@@ -392,7 +394,7 @@ func (ds *Shard) getValue(ctx context.Context, hv *hashBits, key string, cb func
 func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 	var links []*ipld.Link
 	err := ds.ForEachLink(ctx, func(l *ipld.Link) error {
-		links = append(links, l)
+		//links = append(links, l)
 		return nil
 	})
 	return links, err
@@ -400,34 +402,56 @@ func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 
 // ForEachLink walks the Shard and calls the given function.
 func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) error {
-	return ds.walkTrie(ctx, func(sv *shardValue) error {
+	var n sync.WaitGroup
+	n.Add(1)
+	tokens := make(chan struct{}, 320)
+	result := ds.walkTrie(ctx, &n, tokens, func(sv *shardValue) error {
 		lnk := sv.val
 		lnk.Name = sv.key
 
 		return f(lnk)
 	})
+
+	n.Wait()
+	return result
 }
 
-func (ds *Shard) walkTrie(ctx context.Context, cb func(*shardValue) error) error {
-	for idx := range ds.children {
-		c, err := ds.getChild(ctx, idx)
-		if err != nil {
+var counter = 0
+
+func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
+	defer n.Done()
+	fmt.Printf("tokens length: %d\n", len(tokens))
+	tokens <- struct{}{}
+	c, err := ds.getChild(ctx, idx)
+	<-tokens
+	if err != nil {
+		return err
+	}
+
+	switch c := c.(type) {
+	case *shardValue:
+		if err := cb(c); err != nil {
 			return err
 		}
 
-		switch c := c.(type) {
-		case *shardValue:
-			if err := cb(c); err != nil {
-				return err
-			}
+	case *Shard:
+		n.Add(1)
+		go c.walkTrie(ctx, n, tokens, cb)
+	default:
+		return fmt.Errorf("unexpected child type: %#v", c)
+	}
+	return nil
+}
 
-		case *Shard:
-			if err := c.walkTrie(ctx, cb); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unexpected child type: %#v", c)
-		}
+func (ds *Shard) walkTrie(ctx context.Context, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
+	counter++
+	defer n.Done()
+	fmt.Printf("Starting to Walk: %d\n", counter)
+	fmt.Printf("Active Go Routines: %d\n", runtime.NumGoroutine())
+
+	for idx := range ds.children {
+		n.Add(1)
+		go ds.getChildAsync(ctx, idx, n, tokens, cb)
 	}
 	return nil
 }

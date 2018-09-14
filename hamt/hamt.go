@@ -392,12 +392,28 @@ func (ds *Shard) getValue(ctx context.Context, hv *hashBits, key string, cb func
 
 // EnumLinks collects all links in the Shard.
 func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
+	var results = make(chan *shardValue)
+	//
+	go func() {
+		var n sync.WaitGroup
+		tokens := make(chan struct{}, 320)
+		// TODO handle error
+		ds.walkTrie(ctx, &n, tokens, func(sv *shardValue) error {
+			results<-sv
+			return nil
+		})
+
+		n.Wait()
+		close(results)
+	}()
+	//
 	var links []*ipld.Link
-	err := ds.ForEachLink(ctx, func(l *ipld.Link) error {
-		//links = append(links, l)
-		return nil
-	})
-	return links, err
+	for sv := range results {
+		lnk := sv.val
+		lnk.Name = sv.key
+		links = append(links, lnk)
+	}
+	return links, nil
 }
 
 // ForEachLink walks the Shard and calls the given function.
@@ -409,7 +425,7 @@ func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) erro
 		lnk := sv.val
 		lnk.Name = sv.key
 
-		return f(lnk)
+		return nil
 	})
 
 	n.Wait()
@@ -419,6 +435,7 @@ func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) erro
 var counter = 0
 
 func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
+	n.Add(1)
 	defer n.Done()
 	fmt.Printf("tokens length: %d\n", len(tokens))
 	tokens <- struct{}{}
@@ -435,7 +452,6 @@ func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, 
 		}
 
 	case *Shard:
-		n.Add(1)
 		go c.walkTrie(ctx, n, tokens, cb)
 	default:
 		return fmt.Errorf("unexpected child type: %#v", c)
@@ -445,12 +461,12 @@ func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, 
 
 func (ds *Shard) walkTrie(ctx context.Context, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
 	counter++
+	n.Add(1)
 	defer n.Done()
 	fmt.Printf("Starting to Walk: %d\n", counter)
 	fmt.Printf("Active Go Routines: %d\n", runtime.NumGoroutine())
 
 	for idx := range ds.children {
-		n.Add(1)
 		go ds.getChildAsync(ctx, idx, n, tokens, cb)
 	}
 	return nil

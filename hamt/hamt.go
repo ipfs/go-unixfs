@@ -398,6 +398,7 @@ func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 		var n sync.WaitGroup
 		tokens := make(chan struct{}, 320)
 		// TODO handle error
+		n.Add(1)
 		ds.walkTrie(ctx, &n, tokens, func(sv *shardValue) error {
 			results<-sv
 			return nil
@@ -435,7 +436,6 @@ func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) erro
 var counter = 0
 
 func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
-	n.Add(1)
 	defer n.Done()
 	fmt.Printf("tokens length: %d\n", len(tokens))
 	tokens <- struct{}{}
@@ -452,6 +452,7 @@ func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, 
 		}
 
 	case *Shard:
+		n.Add(1)
 		go c.walkTrie(ctx, n, tokens, cb)
 	default:
 		return fmt.Errorf("unexpected child type: %#v", c)
@@ -461,12 +462,12 @@ func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, 
 
 func (ds *Shard) walkTrie(ctx context.Context, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
 	counter++
-	n.Add(1)
 	defer n.Done()
 	fmt.Printf("Starting to Walk: %d\n", counter)
 	fmt.Printf("Active Go Routines: %d\n", runtime.NumGoroutine())
 
 	for idx := range ds.children {
+		n.Add(1)
 		go ds.getChildAsync(ctx, idx, n, tokens, cb)
 	}
 	return nil

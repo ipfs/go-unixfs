@@ -390,20 +390,92 @@ func (ds *Shard) getValue(ctx context.Context, hv *hashBits, key string, cb func
 	return os.ErrNotExist
 }
 
+// ForEachLink walks the Shard and calls the given function.
+func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) error {
+	return ds.walkTrie(ctx, func(sv *shardValue) error {
+		lnk := sv.val
+		lnk.Name = sv.key
+
+		return f(lnk)
+	})
+}
+
+func (ds *Shard) walkTrie(ctx context.Context, cb func(*shardValue) error) error {
+	for idx := range ds.children {
+		c, err := ds.getChild(ctx, idx)
+		if err != nil {
+			return err
+		}
+
+		switch c := c.(type) {
+		case *shardValue:
+			if err := cb(c); err != nil {
+				return err
+			}
+
+		case *Shard:
+			if err := c.walkTrie(ctx, cb); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unexpected child type: %#v", c)
+		}
+	}
+	return nil
+}
+
+type childRequest struct {
+	ds  *Shard
+	ctx context.Context
+	idx int
+	n   *sync.WaitGroup
+}
+
+type walkTrieRequest struct {
+	ctx context.Context
+	n   *sync.WaitGroup
+	ds  *Shard
+}
+
 // EnumLinks collects all links in the Shard.
 func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 	var results = make(chan *shardValue)
 	//
 	go func() {
 		var n sync.WaitGroup
-		tokens := make(chan struct{}, 320)
+		getChildRequests := make(chan childRequest)
+		walkTrieRequests := make(chan walkTrieRequest)
+		getChildJobs := make(chan childRequest)
+		walkTrieJobs := make(chan walkTrieRequest)
+		quitChildQueue := make(chan int)
+		quitWalkTrieQueue := make(chan int)
+		for w := 1; w <= 320; w++ {
+			go getChildAsync(getChildJobs, walkTrieRequests, results)
+		}
+		for w := 1; w <= 320; w++ {
+			go parallelWalkTrie(walkTrieJobs, getChildRequests)
+		}
+		go childQueue(getChildRequests, getChildJobs, quitChildQueue)
+		go walkTrieQueue(walkTrieRequests, walkTrieJobs, quitWalkTrieQueue)
+
 		// TODO handle error
-		ds.walkTrie(ctx, &n, tokens, func(sv *shardValue) error {
-			results<-sv
-			return nil
-		})
+		var nextWalkTrieRequest walkTrieRequest
+		nextWalkTrieRequest.ctx = ctx
+		nextWalkTrieRequest.ds = ds
+		nextWalkTrieRequest.n = &n
+
+		n.Add(1)
+		walkTrieRequests <- nextWalkTrieRequest
 
 		n.Wait()
+		quitChildQueue <- 0
+		quitWalkTrieQueue <- 0
+		close(getChildRequests)
+		close(walkTrieRequests)
+		close(getChildJobs)
+		close(walkTrieJobs)
+		close(quitChildQueue)
+		close(quitWalkTrieQueue)
 		close(results)
 	}()
 	//
@@ -416,55 +488,106 @@ func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 	return links, nil
 }
 
-// ForEachLink walks the Shard and calls the given function.
-func (ds *Shard) ForEachLink(ctx context.Context, f func(*ipld.Link) error) error {
-	var n sync.WaitGroup
-	tokens := make(chan struct{}, 320)
-	result := ds.walkTrie(ctx, &n, tokens, func(sv *shardValue) error {
-		lnk := sv.val
-		lnk.Name = sv.key
-
-		return nil
-	})
-
-	n.Wait()
-	return result
-}
-
 var counter = 0
 
-func (ds *Shard) getChildAsync(ctx context.Context, idx int, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
-	defer n.Done()
-	fmt.Printf("tokens length: %d\n", len(tokens))
-	tokens <- struct{}{}
-	c, err := ds.getChild(ctx, idx)
-	<-tokens
-	if err != nil {
-		return err
+func childQueue(getChildRequests <-chan childRequest, getChildJobs chan<- childRequest, quit chan int) error {
+	var childRequestBuffer []childRequest
+	for {
+		if len(childRequestBuffer) > 0 {
+			select {
+			case nextChildRequest := <-getChildRequests:
+				childRequestBuffer = append(childRequestBuffer, nextChildRequest)
+			case getChildJobs <- childRequestBuffer[0]:
+				_, childRequestBuffer = childRequestBuffer[0], childRequestBuffer[1:]
+			case <-quit:
+				return nil
+			}
+		} else {
+			select {
+			case nextChildRequest := <-getChildRequests:
+				childRequestBuffer = append(childRequestBuffer, nextChildRequest)
+			case <-quit:
+				return nil
+			}
+		}
 	}
+}
 
-	switch c := c.(type) {
-	case *shardValue:
-		if err := cb(c); err != nil {
+func walkTrieQueue(walkTrieRequests <-chan walkTrieRequest, walkTrieJobs chan<- walkTrieRequest, quit chan int) error {
+	var walkTrieRequestBuffer []walkTrieRequest
+	for {
+		if len(walkTrieRequestBuffer) > 0 {
+			select {
+			case nextWalkTrieRequest := <-walkTrieRequests:
+				walkTrieRequestBuffer = append(walkTrieRequestBuffer, nextWalkTrieRequest)
+			case walkTrieJobs <- walkTrieRequestBuffer[0]:
+				_, walkTrieRequestBuffer = walkTrieRequestBuffer[0], walkTrieRequestBuffer[1:]
+			case <-quit:
+				return nil
+			}
+		} else {
+			select {
+			case nextWalkTrieRequest := <-walkTrieRequests:
+				walkTrieRequestBuffer = append(walkTrieRequestBuffer, nextWalkTrieRequest)
+			case <-quit:
+				return nil
+			}
+		}
+	}
+}
+
+func getChildAsync(getChildJobs <-chan childRequest, walkTrieRequests chan<- walkTrieRequest, results chan<- *shardValue) error {
+	for nextChildRequest := range getChildJobs {
+		ds := nextChildRequest.ds
+		n := nextChildRequest.n
+		idx := nextChildRequest.idx
+		ctx := nextChildRequest.ctx
+		c, err := ds.getChild(ctx, idx)
+		if err != nil {
 			return err
 		}
 
-	case *Shard:
-		c.walkTrie(ctx, n, tokens, cb)
-	default:
-		return fmt.Errorf("unexpected child type: %#v", c)
+		switch c := c.(type) {
+		case *shardValue:
+			results <- c
+
+		case *Shard:
+			var nextWalkTrieRequest walkTrieRequest
+			nextWalkTrieRequest.n = n
+			nextWalkTrieRequest.ctx = ctx
+			nextWalkTrieRequest.ds = c
+			n.Add(1)
+			walkTrieRequests <- nextWalkTrieRequest
+		default:
+			return fmt.Errorf("unexpected child type: %#v", c)
+		}
+		n.Done()
+		fmt.Println("Done get Child!")
 	}
 	return nil
 }
 
-func (ds *Shard) walkTrie(ctx context.Context, n *sync.WaitGroup, tokens chan struct{}, cb func(*shardValue) error) error {
-	counter++
-	fmt.Printf("Starting to Walk: %d\n", counter)
-	fmt.Printf("Active Go Routines: %d\n", runtime.NumGoroutine())
+func parallelWalkTrie(walkTrieJobs <-chan walkTrieRequest, getChildRequests chan<- childRequest) error {
+	for nextWalkTrieRequest := range walkTrieJobs {
+		n := nextWalkTrieRequest.n
+		ds := nextWalkTrieRequest.ds
+		ctx := nextWalkTrieRequest.ctx
+		counter++
+		fmt.Printf("Starting to Walk: %d\n", counter)
+		fmt.Printf("Active Go Routines: %d\n", runtime.NumGoroutine())
 
-	for idx := range ds.children {
-		n.Add(1)
-		go ds.getChildAsync(ctx, idx, n, tokens, cb)
+		for idx := range ds.children {
+			var nextChildRequest childRequest
+			nextChildRequest.ds = ds
+			nextChildRequest.idx = idx
+			nextChildRequest.n = n
+			nextChildRequest.ctx = ctx
+			n.Add(1)
+			getChildRequests <- nextChildRequest
+
+		}
+		n.Done()
+		fmt.Println("Done walk trie!")
 	}
 	return nil
 }

@@ -8,11 +8,6 @@
   },
   "gxDependencies": [
     {
-      "hash": "QmSP88ryZkHSRn1fnngAaV2Vcn63WUJzAavnRM9CVdU1Ky",
-      "name": "go-ipfs-cmdkit",
-      "version": "1.1.3"
-    },
-    {
       "author": "whyrusleeping",
       "hash": "QmfJHywXQu98UeZtGJBQrPAR6AtmDjjbe3qjTo9piXHPnx",
       "name": "murmur3",
@@ -71,6 +66,12 @@
       "hash": "QmdDXJs4axxefSPgK6Y1QhpJWKuDPnGJiqgq4uncb4rFHL",
       "name": "go-ipld-format",
       "version": "0.6.0"
+    },
+    {
+      "author": "magik6k",
+      "hash": "QmPPTbdBVPWgSwtDzL4ftVc5E3TH32oUtnov3RFNwbEoR4",
+      "name": "go-ipfs-files",
+      "version": "1.0.0"
     }
   ],
   "gxVersion": "0.12.1",
@@ -78,6 +79,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.1.9"
+  "version": "1.1.10"
 }
 

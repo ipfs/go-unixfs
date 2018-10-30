@@ -90,18 +90,7 @@ func (dm *DagModifier) WriteAt(b []byte, offset int64) (int, error) {
 			dm.wrBuf.Reset()
 		}
 	} else if uint64(offset) != dm.curWrOff {
-		size, err := dm.Size()
-		if err != nil {
-			return 0, err
-		}
-		if offset > size {
-			err := dm.expandSparse(offset - size)
-			if err != nil {
-				return 0, err
-			}
-		}
-
-		err = dm.Sync()
+		err := dm.Sync()
 		if err != nil {
 			return 0, err
 		}

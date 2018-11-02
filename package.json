@@ -79,6 +79,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.2.0"
+  "version": "1.2.1"
 }
 

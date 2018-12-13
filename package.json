@@ -69,9 +69,9 @@
     },
     {
       "author": "magik6k",
-      "hash": "QmZMWMvWMVKCbHetJ4RgndbuEF1io2UpUxwQwtNjtYPzSC",
+      "hash": "QmXWZCd8jfaHmt4UDSnjKmGcrQMw95bDGWqEeVLVJjoANX",
       "name": "go-ipfs-files",
-      "version": "1.0.1"
+      "version": "2.0.3"
     }
   ],
   "gxVersion": "0.12.1",
@@ -79,6 +79,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.2.9"
+  "version": "1.2.10"
 }
 

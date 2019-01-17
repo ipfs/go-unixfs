@@ -27,15 +27,15 @@
     },
     {
       "author": "why",
-      "hash": "QmTQdH4848iTVCJmKXYyRiK72HufWTLYQQ8iN3JaQ8K1Hq",
+      "hash": "QmZ7qUTjmrgDTuJNufgjrAkGFxs5LiptVJyVjfaEFiFN8q",
       "name": "go-merkledag",
-      "version": "1.1.26"
+      "version": "1.1.27"
     },
     {
       "author": "hector",
-      "hash": "QmR6YMs8EkXQLXNwQKxLnQp2VBZSepoEJ8KCZAyanJHhJu",
+      "hash": "QmUhHBdzfNb9FQPDtKwhghVoR3zwkbXzFJ1uJyEMYUpFSd",
       "name": "go-ipfs-posinfo",
-      "version": "0.1.3"
+      "version": "0.1.4"
     },
     {
       "author": "Stebalien",
@@ -63,9 +63,9 @@
     },
     {
       "author": "whyrusleeping",
-      "hash": "QmcKKBwfz6FyQdHR2jsXrrF6XeSBXYL86anmWNewpFpoF5",
+      "hash": "QmRL22E4paat7ky7vx9MLpR97JHHbFPrg3ytFQw6qp1y1s",
       "name": "go-ipld-format",
-      "version": "0.7.2"
+      "version": "0.8.0"
     },
     {
       "author": "magik6k",

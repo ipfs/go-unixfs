@@ -27,15 +27,15 @@
     },
     {
       "author": "why",
-      "hash": "QmUsnWBZaqpZ8i2wX37V2wC5hcB7VWB3zsUcNsyQ1Be5AX",
+      "hash": "QmScf5hnTEK8fDpRJAbcdMnKXpKUp1ytdymzXUbXDCFssp",
       "name": "go-merkledag",
-      "version": "1.1.34"
+      "version": "1.1.35"
     },
     {
       "author": "hector",
-      "hash": "QmUhHBdzfNb9FQPDtKwhghVoR3zwkbXzFJ1uJyEMYUpFSd",
+      "hash": "QmdiZuFuiFD1Gbuu8PdqmsfrCR3z4QKSR2bN1NAvnJgTY7",
       "name": "go-ipfs-posinfo",
-      "version": "0.1.4"
+      "version": "0.1.5"
     },
     {
       "author": "Stebalien",
@@ -45,15 +45,15 @@
     },
     {
       "author": "hsanjuan",
-      "hash": "QmXivYDjgMqNQXbEQVC7TMuZnRADCa71ABQUQxWPZPTLbd",
+      "hash": "QmYmZ81dU5nnmBFy5MmktXLZpt8QCWhRJd6M1uxVF6vke8",
       "name": "go-ipfs-chunker",
-      "version": "0.1.5"
+      "version": "0.1.6"
     },
     {
       "author": "whyrusleeping",
-      "hash": "QmR8BauakNcBa3RbE4nbQu76PDiJgoQgz8AJdhJuiU4TAw",
+      "hash": "QmTbxNB1NwDesLmKTscr4udL2tVP7MaxvXnD1D9yX7g3PN",
       "name": "go-cid",
-      "version": "0.9.1"
+      "version": "0.9.3"
     },
     {
       "author": "whyrusleeping",
@@ -63,9 +63,9 @@
     },
     {
       "author": "whyrusleeping",
-      "hash": "QmRL22E4paat7ky7vx9MLpR97JHHbFPrg3ytFQw6qp1y1s",
+      "hash": "QmZ6nzCLwGLVfRzYLpD7pW6UNuBDKEcA2imJtVpbEx2rxy",
       "name": "go-ipld-format",
-      "version": "0.8.0"
+      "version": "0.8.1"
     },
     {
       "author": "magik6k",
@@ -79,6 +79,6 @@
   "license": "",
   "name": "go-unixfs",
   "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
-  "version": "1.3.9"
+  "version": "1.3.10"
 }
 

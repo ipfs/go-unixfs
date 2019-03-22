@@ -5,7 +5,7 @@ require (
 	github.com/gogo/protobuf v1.2.1
 	github.com/ipfs/go-cid v0.0.1
 	github.com/ipfs/go-ipfs-chunker v0.0.1
-	github.com/ipfs/go-ipfs-files v0.0.1
+	github.com/ipfs/go-ipfs-files v0.0.2
 	github.com/ipfs/go-ipfs-posinfo v0.0.1
 	github.com/ipfs/go-ipfs-util v0.0.1
 	github.com/ipfs/go-ipld-format v0.0.1

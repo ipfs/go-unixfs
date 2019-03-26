@@ -30,6 +30,7 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
 	format "github.com/ipfs/go-unixfs"
+	coreiface "github.com/ipfs/interface-go-ipfs-core"
 )
 
 const (
@@ -61,6 +62,8 @@ type Shard struct {
 	// leaf node
 	key string
 	val *ipld.Link
+
+	rawData []byte
 }
 
 // NewShard creates a new, empty HAMT shard with the given size.
@@ -126,6 +129,7 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 	ds.cid = pbnd.Cid()
 	ds.hashFunc = fsn.HashType()
 	ds.builder = pbnd.CidBuilder()
+	ds.rawData = pbnd.RawData()
 
 	return ds, nil
 }
@@ -280,16 +284,32 @@ func (ds *Shard) Link() (*ipld.Link, error) {
 	return ipld.MakeLink(nd)
 }
 
+func hamtChunk(name string, rawData []byte) []byte {
+	buff := make([]byte, 4+len(name)+len(rawData))
+	buff[0] = 1
+	buff[1] = byte(len(name) >> 16)
+	buff[2] = byte(len(name) >> 8)
+	buff[3] = byte(len(name))
+	copy(buff[4:], []byte(name))
+	copy(buff[4+len(name):], rawData)
+
+	return buff
+}
+
 func (ds *Shard) getValue(ctx context.Context, hv *hashBits, key string, cb func(*Shard) error) error {
 	childIndex, err := hv.Next(ds.tableSizeLg2)
 	if err != nil {
 		return err
 	}
+	sliceIndex := ds.childer.sliceIndex(childIndex)
 
 	if ds.childer.has(childIndex) {
-		child, err := ds.childer.get(ctx, ds.childer.sliceIndex(childIndex))
+		child, err := ds.childer.get(ctx, sliceIndex)
 		if err != nil {
 			return err
+		}
+		if pw, ok := ctx.Value("proxy-preamble").(coreiface.ProofWriter); ok {
+			pw.WriteChunk(hamtChunk(ds.childer.link(sliceIndex).Name, ds.rawData))
 		}
 
 		if child.isValueNode() {

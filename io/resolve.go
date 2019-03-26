@@ -8,6 +8,7 @@ import (
 	hamt "github.com/ipfs/go-unixfs/hamt"
 
 	ipld "github.com/ipfs/go-ipld-format"
+	coreiface "github.com/ipfs/interface-go-ipfs-core"
 )
 
 // ResolveUnixfsOnce resolves a single hop of a path through a graph in a
@@ -16,12 +17,7 @@ func ResolveUnixfsOnce(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, na
 	pn, ok := nd.(*dag.ProtoNode)
 	if ok {
 		fsn, err := ft.FSNodeFromBytes(pn.Data())
-		if err != nil {
-			// Not a unixfs node, use standard object traversal code
-			return nd.ResolveLink(names)
-		}
-
-		if fsn.Type() == ft.THAMTShard {
+		if err == nil && fsn.Type() == ft.THAMTShard {
 			rods := dag.NewReadOnlyDagService(ds)
 			s, err := hamt.NewHamtFromDag(rods, nd)
 			if err != nil {
@@ -37,5 +33,8 @@ func ResolveUnixfsOnce(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, na
 		}
 	}
 
+	if pw, ok := ctx.Value("proxy-preamble").(coreiface.ProofWriter); ok {
+		pw.WriteChunk(append([]byte{0}, nd.RawData()...))
+	}
 	return nd.ResolveLink(names)
 }

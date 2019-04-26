@@ -11,5 +11,5 @@ require (
 	github.com/ipfs/go-ipld-format v0.0.1
 	github.com/ipfs/go-merkledag v0.0.3
 	github.com/multiformats/go-multihash v0.0.1
-	github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72
+	github.com/spaolacci/murmur3 v1.1.0
 )

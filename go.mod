@@ -1,7 +1,7 @@
 module github.com/ipfs/go-unixfs
 
 require (
-	github.com/Stebalien/go-bitfield v0.0.0-20180330043415-076a62f9ce6e
+	github.com/Stebalien/go-bitfield v0.0.1
 	github.com/gogo/protobuf v1.2.1
 	github.com/ipfs/go-cid v0.0.1
 	github.com/ipfs/go-ipfs-chunker v0.0.1

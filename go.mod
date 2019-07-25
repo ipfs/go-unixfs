@@ -11,7 +11,7 @@ require (
 	github.com/ipfs/go-ipfs-posinfo v0.0.1
 	github.com/ipfs/go-ipfs-util v0.0.1
 	github.com/ipfs/go-ipld-format v0.0.2
-	github.com/ipfs/go-merkledag v0.2.0
+	github.com/ipfs/go-merkledag v0.2.2
 	github.com/multiformats/go-multihash v0.0.5
 	github.com/polydawn/refmt v0.0.0-20190408063855-01bf1e26dd14 // indirect
 	github.com/smartystreets/assertions v1.0.0 // indirect

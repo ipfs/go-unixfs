@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"math"
 	"strings"
 	"testing"
 
 	mdag "github.com/ipfs/go-merkledag"
 	"github.com/ipfs/go-unixfs"
 
-	context "context"
+	"context"
 
 	testu "github.com/ipfs/go-unixfs/test"
 )
@@ -236,6 +237,50 @@ func TestReaderSzie(t *testing.T) {
 
 	if reader.Size() != uint64(size) {
 		t.Fatal("wrong reader size")
+	}
+}
+
+func TestReadBlock(t *testing.T) {
+	dserv := testu.GetDAGServ()
+	inbuf := make([]byte, 200000)
+	for i := range inbuf {
+		inbuf[i] = byte(i % math.MaxUint8)
+	}
+
+	node := testu.GetNode(t, dserv, inbuf, testu.UseProtoBufLeaves)
+	ctx, closer := context.WithCancel(context.Background())
+	defer closer()
+
+	reader, err := NewDagReader(ctx, node, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nextOff := uint64(0)
+	// 500 is the leaf size from testu.GetNode, we also have 3 intermediate nodes
+	for i := 0; i < 200000/500+3; i++ {
+		data, offset, _, err := reader.ReadBlock(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if i%175 == 0 {
+			if len(data) != 0 {
+				t.Fatal("expected intermediate node")
+			}
+			continue
+		}
+		if len(data) == 0 {
+			t.Fatal("didn't expect intermediate node")
+		}
+		if nextOff != offset {
+			t.Error("unexpected offset")
+		}
+		nextOff += 500
+	}
+	_, _, _, err = reader.ReadBlock(ctx)
+	if err != io.EOF {
+		t.Errorf("expected io.EOF, got %s", err)
 	}
 }
 

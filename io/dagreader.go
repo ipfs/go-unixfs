@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/ipfs/go-cid"
 	"io"
 
 	ipld "github.com/ipfs/go-ipld-format"
@@ -31,7 +30,7 @@ type DagReader interface {
 	Size() uint64
 	CtxReadFull(context.Context, []byte) (int, error)
 
-	ReadBlock(context.Context) (data []byte, offset uint64, cid cid.Cid, err error)
+	ReadBlock(context.Context) (data []byte, offset uint64, nd ipld.Node, err error)
 }
 
 // A ReadSeekCloser implements interfaces to read, copy, seek and close.
@@ -143,14 +142,14 @@ func (dr *dagReader) Size() uint64 {
 // ReadBlock read data from a single block, returning the data,
 // offset in file, and the cid. It must be called on block boundary.
 // If len(data) == 0, then the returned node was an internal node.
-func (dr *dagReader) ReadBlock(ctx context.Context) ([]byte, uint64, cid.Cid, error) {
+func (dr *dagReader) ReadBlock(ctx context.Context) ([]byte, uint64, ipld.Node, error) {
 	// Set the `dagWalker`'s context to the `ctx` argument, it will be used
 	// to fetch the child node promises (see
 	// `ipld.NavigableIPLDNode.FetchChild` for details).
 	dr.dagWalker.SetContext(ctx)
 
 	if dr.currentNodeData != nil {
-		return nil, 0, cid.Undef, errors.New("ReadBlock must be called on block boundary")
+		return nil, 0, nil, errors.New("ReadBlock must be called on block boundary")
 	}
 
 	offset := dr.offset
@@ -163,19 +162,19 @@ func (dr *dagReader) ReadBlock(ctx context.Context) ([]byte, uint64, cid.Cid, er
 		return nil
 	})
 	if err == ipld.EndOfDag {
-		return nil, 0, cid.Undef, io.EOF
+		return nil, 0, nil, io.EOF
 	} else if err != nil {
-		return nil, 0, cid.Undef, err
+		return nil, 0, nil, err
 	}
 
 	extractedNodeData, err := unixfs.ReadUnixFSNodeData(node)
 	if err != nil {
-		return nil, 0, cid.Undef, err
+		return nil, 0, nil, err
 	}
 
 	dr.offset += int64(len(extractedNodeData))
 
-	return extractedNodeData, uint64(offset), node.Cid(), nil
+	return extractedNodeData, uint64(offset), node, nil
 }
 
 // Read implements the `io.Reader` interface through the `CtxReadFull`

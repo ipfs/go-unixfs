@@ -8,9 +8,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	ft "github.com/ipfs/go-unixfs"
-	h "github.com/ipfs/go-unixfs/importer/helpers"
-	trickle "github.com/ipfs/go-unixfs/importer/trickle"
+	ft "github.com/TRON-US/go-unixfs"
+	h "github.com/TRON-US/go-unixfs/importer/helpers"
+	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 
 	cid "github.com/ipfs/go-cid"
 	chunker "github.com/ipfs/go-ipfs-chunker"

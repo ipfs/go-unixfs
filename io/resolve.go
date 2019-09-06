@@ -4,8 +4,8 @@ import (
 	"context"
 
 	dag "github.com/ipfs/go-merkledag"
-	ft "github.com/ipfs/go-unixfs"
-	hamt "github.com/ipfs/go-unixfs/hamt"
+	ft "github.com/TRON-US/go-unixfs"
+	hamt "github.com/TRON-US/go-unixfs/hamt"
 
 	ipld "github.com/ipfs/go-ipld-format"
 )

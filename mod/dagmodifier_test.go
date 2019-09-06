@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	dag "github.com/ipfs/go-merkledag"
-	h "github.com/ipfs/go-unixfs/importer/helpers"
-	trickle "github.com/ipfs/go-unixfs/importer/trickle"
-	uio "github.com/ipfs/go-unixfs/io"
-	testu "github.com/ipfs/go-unixfs/test"
+	h "github.com/TRON-US/go-unixfs/importer/helpers"
+	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
+	uio "github.com/TRON-US/go-unixfs/io"
+	testu "github.com/TRON-US/go-unixfs/test"
 
 	u "github.com/ipfs/go-ipfs-util"
-	"github.com/ipfs/go-unixfs"
+	"github.com/TRON-US/go-unixfs"
 )
 
 func testModWrite(t *testing.T, beg, size uint64, orig []byte, dm *DagModifier, opts testu.NodeOpts) []byte {

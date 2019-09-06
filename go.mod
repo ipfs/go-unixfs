@@ -1,4 +1,4 @@
-module github.com/ipfs/go-unixfs
+module github.com/TRON-US/go-unixfs
 
 require (
 	github.com/Stebalien/go-bitfield v0.0.1

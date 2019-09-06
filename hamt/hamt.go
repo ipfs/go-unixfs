@@ -29,7 +29,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
-	format "github.com/ipfs/go-unixfs"
+	format "github.com/TRON-US/go-unixfs"
 )
 
 const (

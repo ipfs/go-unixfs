@@ -8,10 +8,10 @@ import (
 	"errors"
 	"io"
 
-	ft "github.com/ipfs/go-unixfs"
-	help "github.com/ipfs/go-unixfs/importer/helpers"
-	trickle "github.com/ipfs/go-unixfs/importer/trickle"
-	uio "github.com/ipfs/go-unixfs/io"
+	ft "github.com/TRON-US/go-unixfs"
+	help "github.com/TRON-US/go-unixfs/importer/helpers"
+	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
+	uio "github.com/TRON-US/go-unixfs/io"
 
 	cid "github.com/ipfs/go-cid"
 	chunker "github.com/ipfs/go-ipfs-chunker"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	ft "github.com/ipfs/go-unixfs"
-	uio "github.com/ipfs/go-unixfs/io"
+	ft "github.com/TRON-US/go-unixfs"
+	uio "github.com/TRON-US/go-unixfs/io"
 
 	files "github.com/ipfs/go-ipfs-files"
 	ipld "github.com/ipfs/go-ipld-format"

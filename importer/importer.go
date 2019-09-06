@@ -3,9 +3,9 @@
 package importer
 
 import (
-	bal "github.com/ipfs/go-unixfs/importer/balanced"
-	h "github.com/ipfs/go-unixfs/importer/helpers"
-	trickle "github.com/ipfs/go-unixfs/importer/trickle"
+	bal "github.com/TRON-US/go-unixfs/importer/balanced"
+	h "github.com/TRON-US/go-unixfs/importer/helpers"
+	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 
 	chunker "github.com/ipfs/go-ipfs-chunker"
 	ipld "github.com/ipfs/go-ipld-format"

@@ -23,16 +23,16 @@ var ErrMissingFsRef = errors.New("missing file path or URL, can't create filesto
 // DagBuilderHelper wraps together a bunch of objects needed to
 // efficiently create unixfs dag trees
 type DagBuilderHelper struct {
-	dserv      ipld.DAGService
-	spl        chunker.Splitter
-	recvdErr   error
-	rawLeaves  bool
-	nextData   []byte // the next item to return.
-	maxlinks   int
-	cidBuilder cid.Builder
-	tokenMetadata []byte
-	tokenMetaToProcess bool // Need to add the tokenMetadata to the current UnixFs node?
-	metaOffset uint64       // starting offset of token metadata
+	dserv              ipld.DAGService
+	spl                chunker.Splitter
+	recvdErr           error
+	rawLeaves          bool
+	nextData           []byte // the next item to return.
+	maxlinks           int
+	cidBuilder         cid.Builder
+	tokenMetadata      []byte
+	tokenMetaToProcess bool   // Need to add the tokenMetadata to the current UnixFs node?
+	metaOffset         uint64 // starting offset of token metadata
 
 	// Filestore support variables.
 	// ----------------------------

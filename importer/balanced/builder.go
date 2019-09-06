@@ -146,7 +146,9 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	// (corner case), after that subsequent `root` nodes will
 	// always be internal nodes (with a depth > 0) that can
 	// be handled by the loop.
-	db.SetTokenMetaToProcess(true)
+	if db.GetTokenMetadata() != nil {
+		db.SetTokenMetaToProcess(true)
+	}
 	root, fileSize, err := db.NewLeafDataNode(ft.TFile)
 	if err != nil {
 		return nil, err

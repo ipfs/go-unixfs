@@ -23,13 +23,16 @@ var ErrMissingFsRef = errors.New("missing file path or URL, can't create filesto
 // DagBuilderHelper wraps together a bunch of objects needed to
 // efficiently create unixfs dag trees
 type DagBuilderHelper struct {
-	dserv      ipld.DAGService
-	spl        chunker.Splitter
-	recvdErr   error
-	rawLeaves  bool
-	nextData   []byte // the next item to return.
-	maxlinks   int
-	cidBuilder cid.Builder
+	dserv              ipld.DAGService
+	spl                chunker.Splitter
+	recvdErr           error
+	rawLeaves          bool
+	nextData           []byte // the next item to return.
+	maxlinks           int
+	cidBuilder         cid.Builder
+	tokenMetadata      []byte
+	tokenMetaToProcess bool   // Need to add the tokenMetadata to the current UnixFs node?
+	metaOffset         uint64 // starting offset of token metadata
 
 	// Filestore support variables.
 	// ----------------------------
@@ -65,6 +68,9 @@ type DagBuilderParams struct {
 	// NoCopy signals to the chunker that it should track fileinfo for
 	// filestore adds
 	NoCopy bool
+
+	// Token metadata to be added to the first UnixFs node.
+	TokenMetadata []byte
 }
 
 // New generates a new DagBuilderHelper from the given params and a given
@@ -80,6 +86,10 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 	if fi, ok := spl.Reader().(files.FileInfo); dbp.NoCopy && ok {
 		db.fullPath = fi.AbsPath()
 		db.stat = fi.Stat()
+	}
+
+	if dbp.TokenMetadata != nil {
+		db.tokenMetadata = dbp.TokenMetadata
 	}
 
 	if dbp.NoCopy && db.fullPath == "" { // Enforce NoCopy
@@ -138,6 +148,16 @@ func (db *DagBuilderHelper) GetCidBuilder() cid.Builder {
 	return db.cidBuilder
 }
 
+// GetTokenMetadata returns token metadata []byte.
+func (db *DagBuilderHelper) GetTokenMetadata() []byte {
+	return db.tokenMetadata
+}
+
+// SetTokenMetaToProcess sets v to tokenMetaToProcess.
+func (db *DagBuilderHelper) SetTokenMetaToProcess(v bool) {
+	db.tokenMetaToProcess = v
+}
+
 // NewLeafNode creates a leaf node filled with data.  If rawLeaves is
 // defined then a raw leaf will be returned.  Otherwise, it will create
 // and return `FSNodeOverDag` with `fsNodeType`.
@@ -160,6 +180,9 @@ func (db *DagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType
 
 	// Encapsulate the data in UnixFS node (instead of a raw node).
 	fsNodeOverDag := db.NewFSNodeOverDag(fsNodeType)
+	if db.tokenMetaToProcess {
+		fsNodeOverDag.SetMetadataOffset(db.metaOffset)
+	}
 	fsNodeOverDag.SetFileData(data)
 	node, err := fsNodeOverDag.Commit()
 	if err != nil {
@@ -208,10 +231,15 @@ func (db *DagBuilderHelper) NewLeafDataNode(fsNodeType pb.Data_DataType) (node i
 	if err != nil {
 		return nil, 0, err
 	}
-	dataSize = uint64(len(fileData))
+	finalData := fileData
+	if db.tokenMetaToProcess {
+		finalData = append(fileData, db.tokenMetadata...)
+		db.metaOffset = uint64(len(fileData))
+	}
+	dataSize = uint64(len(finalData))
 
 	// Create a new leaf node containing the file chunk data.
-	node, err = db.NewLeafNode(fileData, fsNodeType)
+	node, err = db.NewLeafNode(finalData, fsNodeType)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -374,6 +402,17 @@ func (n *FSNodeOverDag) FileSize() uint64 {
 // node (internal nodes don't carry data, just file sizes).
 func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 	n.file.SetData(fileData)
+}
+
+// SetMetaOffset stores the 'token metadata starting offset within
+// the 'fileData'.
+func (n *FSNodeOverDag) SetMetadataOffset(moffset uint64) {
+	n.file.SetMetaOffset(moffset)
+}
+
+// SetTokenMeta stores the 'token meta bool value' within the 'fileData'.
+func (n *FSNodeOverDag) SetTokenMeta(tokenMetadata bool) {
+	n.file.SetTokenMeta(tokenMetadata)
 }
 
 // GetDagNode fills out the proper formatting for the FSNodeOverDag node

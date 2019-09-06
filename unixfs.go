@@ -276,6 +276,16 @@ func (n *FSNode) SetData(newData []byte) {
 	n.format.Data = newData
 }
 
+// SetMetaOffset sets the `metaOffset` field from the internal `format`.
+func (n *FSNode) SetMetaOffset(moffset uint64) {
+	n.format.MetaOffset = proto.Uint64(moffset)
+}
+
+// SetTokenMeta sets the `metaOffset` field from the internal `format`.
+func (n *FSNode) SetTokenMeta(tokenMetadata bool) {
+	n.format.TokenMeta = proto.Bool(tokenMetadata)
+}
+
 // UpdateFilesize updates the `Filesize` field from the internal `format`
 // by a signed difference (`filesizeDiff`).
 // TODO: Add assert to check for `Filesize` > 0?

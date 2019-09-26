@@ -19,3 +19,5 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
 )
+
+go 1.12

@@ -11,8 +11,8 @@ import (
 	ft "github.com/TRON-US/go-unixfs"
 	pb "github.com/TRON-US/go-unixfs/pb"
 
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	cid "github.com/ipfs/go-cid"
-	chunker "github.com/ipfs/go-ipfs-chunker"
 	files "github.com/ipfs/go-ipfs-files"
 	pi "github.com/ipfs/go-ipfs-posinfo"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -87,7 +87,7 @@ type DagBuilderParams struct {
 // If chunker.Splitter is a chunker.MultiSplitter, then DagBuilderHelper
 // will contain underlying DagBuilderHelpers.
 func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error) {
-	db := &dagBuilderHelper{
+	db := dagBuilderHelper{
 		dserv:      dbp.Dagserv,
 		spl:        spl,
 		rawLeaves:  dbp.RawLeaves,
@@ -111,7 +111,7 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		spls := multiSpl.Splitters()
 		var dbs []*DagBuilderHelper
 		for _, s := range spls {
-			dbc, err := dbp.New(spl)
+			dbc, err := dbp.New(s)
 			if err != nil {
 				return nil, err
 			}

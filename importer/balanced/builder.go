@@ -143,32 +143,36 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	// Build sub trees concurrently
 	for _, dbh := range dbs {
 		go func(db *h.DagBuilderHelper) {
-			n, err := Layout()
+			n, err := Layout(db)
 			dbc <- ne{n, err}
 		}(dbh)
 	}
 	// Create the new root and attach the shard roots as children
-	root := db.NewFSNodeOverDag(ft.TFile)
+	newRoot := db.NewFSNodeOverDag(ft.TFile)
 	for i := 0; i < len(dbs); i++ {
 		res := <-dbc
 		if res.err != nil {
-			return nil, err
+			return nil, res.err
 		}
 		fileSize, err := res.n.Size()
 		if err != nil {
 			return nil, err
 		}
-		err = newRoot.AddChild(root, fileSize, db)
+		err = newRoot.AddChild(res.n, fileSize, db)
 		if err != nil {
 			return nil, err
 		}
+	}
+	root, err := newRoot.Commit()
+	if err != nil {
+		return nil, err
 	}
 	return root, db.Add(root)
 }
 
 // layout is the helper for the Layout logic except it can be invoked by Layout
 // multiple times for multi-split chunkers.
-func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
+func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	if db.Done() {
 		// No data, return just an empty node.
 		root, err := db.NewLeafNode(nil, ft.TFile)

@@ -7,7 +7,7 @@ import (
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
 	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 
-	chunker "github.com/ipfs/go-ipfs-chunker"
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	ipld "github.com/ipfs/go-ipld-format"
 )
 

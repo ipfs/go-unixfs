@@ -37,6 +37,9 @@ const depthRepeat = 4
 // DagBuilderHelper. See the module's description for a more detailed
 // explanation.
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
+	if db.IsMultiDagBuilder() {
+		return nil, fmt.Errorf("trickle layout does not support multi-splitter chunker")
+	}
 	if db.GetTokenMetadata() != nil {
 		db.SetTokenMetaToProcess(true)
 	}

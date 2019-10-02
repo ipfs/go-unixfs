@@ -32,7 +32,7 @@ type DagBuilderHelper struct {
 	cidBuilder         cid.Builder
 	tokenMetadata      []byte
 	tokenMetaToProcess bool   // Need to add the tokenMetadata to the current UnixFs node?
-	metaOffset         uint64 // starting offset of token metadata
+	metaOffset         uint64 // starting offset of token metadata within the data block
 
 	// Filestore support variables.
 	// ----------------------------
@@ -181,6 +181,7 @@ func (db *DagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType
 	// Encapsulate the data in UnixFS node (instead of a raw node).
 	fsNodeOverDag := db.NewFSNodeOverDag(fsNodeType)
 	if db.tokenMetaToProcess {
+		fsNodeOverDag.SetTokenMeta(true)
 		fsNodeOverDag.SetMetadataOffset(db.metaOffset)
 	}
 	fsNodeOverDag.SetFileData(data)
@@ -207,7 +208,9 @@ func (db *DagBuilderHelper) FillNodeLayer(node *FSNodeOverDag) error {
 		if err != nil {
 			return err
 		}
-
+		if db.tokenMetaToProcess {
+			db.SetTokenMetaToProcess(false)
+		}
 		if err := node.AddChild(child, childFileSize, db); err != nil {
 			return err
 		}
@@ -404,10 +407,22 @@ func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 	n.file.SetData(fileData)
 }
 
+// MetadataOffset retrieves the 'token metadata starting offset within
+// the 'fileData'.
+func (n *FSNodeOverDag) MetadataOffset() uint64 {
+	return n.file.MetaOffset()
+}
+
 // SetMetaOffset stores the 'token metadata starting offset within
 // the 'fileData'.
 func (n *FSNodeOverDag) SetMetadataOffset(moffset uint64) {
 	n.file.SetMetaOffset(moffset)
+}
+
+// IsThereTokenMeta returns the bool value from the underlying
+// representation of the 'ft.FSNode'.
+func (n *FSNodeOverDag) IsThereTokenMeta() bool {
+	return n.file.IsThereTokenMeta()
 }
 
 // SetTokenMeta stores the 'token meta bool value' within the 'fileData'.

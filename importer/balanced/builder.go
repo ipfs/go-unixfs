@@ -146,8 +146,10 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	// (corner case), after that subsequent `root` nodes will
 	// always be internal nodes (with a depth > 0) that can
 	// be handled by the loop.
+	isThereTokenMeta := false
 	if db.GetTokenMetadata() != nil {
 		db.SetTokenMetaToProcess(true)
+		isThereTokenMeta = true
 	}
 	root, fileSize, err := db.NewLeafDataNode(ft.TFile)
 	if err != nil {
@@ -163,6 +165,10 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		// Add the old `root` as a child of the `newRoot`.
 		newRoot := db.NewFSNodeOverDag(ft.TFile)
 		newRoot.AddChild(root, fileSize, db)
+		if isThereTokenMeta {
+			// Set this flag to make DAG reader side's work easier.
+			newRoot.SetTokenMeta(true)
+		}
 
 		// Fill the `newRoot` (that has the old `root` already as child)
 		// and make it the current `root` for the next iteration (when

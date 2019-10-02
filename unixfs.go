@@ -54,6 +54,8 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_File
 	pbfile.Type = &typ
+	meta := false
+	pbfile.TokenMeta = &meta
 	pbfile.Data = data
 	pbfile.Filesize = proto.Uint64(totalsize)
 
@@ -73,7 +75,9 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 func FolderPBData() []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_Directory
+	meta := false
 	pbfile.Type = &typ
+	pbfile.TokenMeta = &meta
 
 	data, err := proto.Marshal(pbfile)
 	if err != nil {
@@ -89,6 +93,8 @@ func WrapData(b []byte) []byte {
 	typ := pb.Data_Raw
 	pbdata.Data = b
 	pbdata.Type = &typ
+	meta := false
+	pbdata.TokenMeta = &meta
 	pbdata.Filesize = proto.Uint64(uint64(len(b)))
 
 	out, err := proto.Marshal(pbdata)
@@ -104,6 +110,8 @@ func WrapData(b []byte) []byte {
 func SymlinkData(path string) ([]byte, error) {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Symlink
+	meta := false
+	pbdata.TokenMeta = &meta
 	pbdata.Data = []byte(path)
 	pbdata.Type = &typ
 
@@ -120,6 +128,8 @@ func HAMTShardData(data []byte, fanout uint64, hashType uint64) ([]byte, error) 
 	pbdata := new(pb.Data)
 	typ := pb.Data_HAMTShard
 	pbdata.Type = &typ
+	meta := false
+	pbdata.TokenMeta = &meta
 	pbdata.HashType = proto.Uint64(hashType)
 	pbdata.Data = data
 	pbdata.Fanout = proto.Uint64(fanout)
@@ -202,6 +212,8 @@ func FSNodeFromBytes(b []byte) (*FSNode, error) {
 func NewFSNode(dataType pb.Data_DataType) *FSNode {
 	n := new(FSNode)
 	n.format.Type = &dataType
+	meta := false
+	n.format.TokenMeta = &meta
 
 	// Initialize by `Filesize` by updating it with a dummy (zero) value.
 	n.UpdateFilesize(0)
@@ -269,6 +281,11 @@ func (n *FSNode) Data() []byte {
 	return n.format.GetData()
 }
 
+// Data retrieves the `Data` field from the internal `format`.
+func (n *FSNode) Metadata() []byte {
+	return nil
+}
+
 // SetData sets the `Data` field from the internal `format`
 // updating its `Filesize`.
 func (n *FSNode) SetData(newData []byte) {
@@ -276,9 +293,19 @@ func (n *FSNode) SetData(newData []byte) {
 	n.format.Data = newData
 }
 
+// MetaOffset retrieves the `metaOffset` field from the internal `format`.
+func (n *FSNode) MetaOffset() uint64 {
+	return n.format.GetMetaOffset()
+}
+
 // SetMetaOffset sets the `metaOffset` field from the internal `format`.
 func (n *FSNode) SetMetaOffset(moffset uint64) {
 	n.format.MetaOffset = proto.Uint64(moffset)
+}
+
+// IsThereTokenMeta checks whether the node has token metadata.
+func (n *FSNode) IsThereTokenMeta() bool {
+	return n.format.GetTokenMeta()
 }
 
 // SetTokenMeta sets the `metaOffset` field from the internal `format`.
@@ -379,12 +406,17 @@ func ReadUnixFSNodeData(node ipld.Node) (data []byte, err error) {
 		}
 
 		switch fsNode.Type() {
-		case pb.Data_File, pb.Data_Raw:
+		case pb.Data_File:
+			if fsNode.IsThereTokenMeta() { // Skip token metadata
+				return fsNode.format.Data[:fsNode.MetaOffset()], nil
+			}
 			return fsNode.Data(), nil
 			// Only leaf nodes (of type `Data_Raw`) contain data but due to a
 			// bug the `Data_File` type (normally used for internal nodes) is
 			// also used for leaf nodes, so both types are accepted here
 			// (see the `balanced` package for more details).
+		case pb.Data_Raw:
+			return fsNode.Data(), nil
 		default:
 			return nil, fmt.Errorf("found %s node in unexpected place",
 				fsNode.Type().String())
@@ -415,4 +447,29 @@ func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 	}
 
 	return fsNode, nil
+}
+
+// Remove token metadata from the DAG node data and returns the contents.
+func StripOffTokenMetadata(dagData []byte) ([]byte, []byte, error) {
+	fsNode, err := FSNodeFromBytes(dagData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("incorrectly formatted protobuf: %s", err)
+	}
+
+	var metaData []byte = nil
+	switch fsNode.Type() {
+	case pb.Data_File:
+		if fsNode.IsThereTokenMeta() { // Skip token metadata
+			userData := fsNode.format.Data[:fsNode.MetaOffset()]
+			metaData = fsNode.format.Data[fsNode.MetaOffset():]
+			fsNode.format.Data = userData
+		}
+	case pb.Data_Raw:
+	default:
+		return nil, nil, fmt.Errorf("found %s node in unexpected place",
+			fsNode.Type().String())
+	}
+
+	bytes, err := fsNode.GetBytes()
+	return bytes, metaData, err
 }

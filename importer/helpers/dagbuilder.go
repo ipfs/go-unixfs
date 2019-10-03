@@ -11,8 +11,8 @@ import (
 	ft "github.com/TRON-US/go-unixfs"
 	pb "github.com/TRON-US/go-unixfs/pb"
 
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	cid "github.com/ipfs/go-cid"
-	chunker "github.com/ipfs/go-ipfs-chunker"
 	files "github.com/ipfs/go-ipfs-files"
 	pi "github.com/ipfs/go-ipfs-posinfo"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -20,9 +20,9 @@ import (
 
 var ErrMissingFsRef = errors.New("missing file path or URL, can't create filestore reference")
 
-// DagBuilderHelper wraps together a bunch of objects needed to
-// efficiently create unixfs dag trees
-type DagBuilderHelper struct {
+// dagBuilderHelper contains the shared fields among various different helpers
+// under the same DAG.
+type dagBuilderHelper struct {
 	dserv              ipld.DAGService
 	spl                chunker.Splitter
 	recvdErr           error
@@ -47,6 +47,15 @@ type DagBuilderHelper struct {
 	// is not reused to construct another DAG, but a new one (with a
 	// zero `offset`) is created.
 	offset uint64
+}
+
+// DagBuilderHelper wraps together a bunch of objects needed to
+// efficiently create unixfs dag trees
+type DagBuilderHelper struct {
+	dagBuilderHelper
+
+	// For contained multi-dagbuilders
+	dbs []*DagBuilderHelper
 }
 
 // DagBuilderParams wraps configuration options to create a DagBuilderHelper
@@ -75,8 +84,10 @@ type DagBuilderParams struct {
 
 // New generates a new DagBuilderHelper from the given params and a given
 // chunker.Splitter as data source.
+// If chunker.Splitter is a chunker.MultiSplitter, then DagBuilderHelper
+// will contain underlying DagBuilderHelpers.
 func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error) {
-	db := &DagBuilderHelper{
+	db := dagBuilderHelper{
 		dserv:      dbp.Dagserv,
 		spl:        spl,
 		rawLeaves:  dbp.RawLeaves,
@@ -96,7 +107,31 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		return nil, ErrMissingFsRef
 	}
 
-	return db, nil
+	if multiSpl, ok := spl.(chunker.MultiSplitter); ok {
+		spls := multiSpl.Splitters()
+		var dbs []*DagBuilderHelper
+		for _, s := range spls {
+			dbc, err := dbp.New(s)
+			if err != nil {
+				return nil, err
+			}
+			dbs = append(dbs, dbc)
+		}
+		return &DagBuilderHelper{dagBuilderHelper: db, dbs: dbs}, nil
+	}
+
+	// Return normal, single splitter
+	return &DagBuilderHelper{dagBuilderHelper: db}, nil
+}
+
+// IsMultiDagBuilder checks if this helper contains multiple dagbuilders.
+func (db *DagBuilderHelper) IsMultiDagBuilder() bool {
+	return db.dbs != nil
+}
+
+// MultiHelpers returns the sub DagBuilderHelpers under self.
+func (db *DagBuilderHelper) MultiHelpers() []*DagBuilderHelper {
+	return db.dbs
 }
 
 // prepareNext consumes the next item from the splitter and puts it

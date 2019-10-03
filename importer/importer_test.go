@@ -10,7 +10,7 @@ import (
 	uio "github.com/TRON-US/go-unixfs/io"
 
 	cid "github.com/ipfs/go-cid"
-	chunker "github.com/ipfs/go-ipfs-chunker"
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	u "github.com/ipfs/go-ipfs-util"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdtest "github.com/ipfs/go-merkledag/test"

@@ -379,6 +379,8 @@ func BytesForMetadata(m *Metadata) ([]byte, error) {
 	pbd.Filesize = proto.Uint64(m.Size)
 	typ := pb.Data_Metadata
 	pbd.Type = &typ
+	meta := false
+	pbd.TokenMeta = &meta
 	mdd, err := m.Bytes()
 	if err != nil {
 		return nil, err

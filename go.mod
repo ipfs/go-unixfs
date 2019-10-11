@@ -3,11 +3,11 @@ module github.com/TRON-US/go-unixfs
 require (
 	github.com/Stebalien/go-bitfield v0.0.1
 	github.com/TRON-US/go-btfs-chunker v0.2.0
+	github.com/TRON-US/go-btfs-files v0.1.1
 	github.com/gogo/protobuf v1.2.1
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/ipfs/go-bitswap v0.1.2 // indirect
 	github.com/ipfs/go-cid v0.0.2
-	github.com/ipfs/go-ipfs-files v0.0.3
 	github.com/ipfs/go-ipfs-posinfo v0.0.1
 	github.com/ipfs/go-ipfs-util v0.0.1
 	github.com/ipfs/go-ipld-format v0.0.2

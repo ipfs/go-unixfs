@@ -4,6 +4,8 @@ github.com/Stebalien/go-bitfield v0.0.1 h1:X3kbSSPUaJK60wV2hjOPZwmpljr6VGCqdq4cB
 github.com/Stebalien/go-bitfield v0.0.1/go.mod h1:GNjFpasyUVkHMsfEOk8EFLJ9syQ6SI+XWrX9Wf2XH0s=
 github.com/TRON-US/go-btfs-chunker v0.2.0 h1:dp80UzRmUFzDDDt4nqo2STGVh5I4jDQJRYJYtRGulSo=
 github.com/TRON-US/go-btfs-chunker v0.2.0/go.mod h1:6wFL7KgEumsn7R7IGFZZhOGIHxA/YkA4RdfR553M3Fk=
+github.com/TRON-US/go-btfs-files v0.1.1 h1:GuDIiWDM66bfhfxJy8+dBL4Cfbcp3iBp7pgHpKKCw8k=
+github.com/TRON-US/go-btfs-files v0.1.1/go.mod h1:tD2vOKLcLCDNMn9rrA27n2VbNpHdKewGzEguIFY+EJ0=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 h1:qkOC5Gd33k54tobS36cXdAzJbeHaduLtnLQQwNoIi78=
 github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32/go.mod h1:DrZx5ec/dmnfpw9KyYoQyYo7d0KEvTkk/5M/vbZjAr8=

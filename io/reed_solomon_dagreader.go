@@ -18,7 +18,7 @@ import (
 // Everything will be pre-filled in memory before supporting DagReader
 // operations from a []byte reader.
 type reedSolomonDagReader struct {
-	bytes.Buffer // for Reader, Seeker, and WriteTo
+	*bytes.Reader // for Reader, Seeker, and WriteTo
 }
 
 type nodeBufIndex struct {
@@ -32,6 +32,8 @@ type nodeBufIndex struct {
 // the returned DagReader to use.
 func NewReedSolomonDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGetter,
 	numData, numParity, size uint64) (DagReader, error) {
+	// TODO: Read data, parity and size from metadata when implemented
+
 	totalShards := int(numData + numParity)
 	if totalShards != len(n.Links()) {
 		return nil, fmt.Errorf("number of links under node [%d] does not match set data + parity [%d]",
@@ -49,7 +51,7 @@ func NewReedSolomonDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGet
 				nodeBufChan <- nodeBufIndex{nil, index, err}
 				return
 			}
-			dr, err := NewDagReader(ctx, n, serv)
+			dr, err := NewDagReader(ctx, node, serv)
 			if err != nil {
 				nodeBufChan <- nodeBufIndex{nil, index, err}
 				return
@@ -61,13 +63,13 @@ func NewReedSolomonDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGet
 				return
 			}
 			nodeBufChan <- nodeBufIndex{&b, index, nil}
-		}(ctxWithCancel, link.Cid(), i)
+		}(ctxWithCancel, link.Cid, i)
 	}
 
 	// Context deadline is set so it should exit eventually
-	bufs := make(*bytes.Buffer, totalShards)
+	bufs := make([]*bytes.Buffer, totalShards)
 	valid := 0
-	for _, nbi := range nodeBufChan {
+	for nbi := range nodeBufChan {
 		if nbi.err != nil {
 			continue
 		}
@@ -85,30 +87,29 @@ func NewReedSolomonDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGet
 
 	// Check if we already have everything
 	dataValid := true
-	for i := 0; i < numData; i++ {
+	for i := 0; i < int(numData); i++ {
 		if bufs[i] == nil {
 			dataValid = false
 			break
 		}
 	}
 
+	// Create rs stream
+	rss, err := rs.NewStreamC(int(numData), int(numParity), true, true)
+	if err != nil {
+		return nil, err
+	}
+
 	// Reconstruct if missing some data shards
 	if !dataValid {
-		// Create rs stream
-		rss, err := rs.NewStreamC(int(numData), int(numParity), true, true)
-		if err != nil {
-			return nil, err
-		}
-
-		// Now reconstruct
-		valid := make(io.Reader, totalShards)
-		fill := make(io.Writer, totalShards)
+		valid := make([]io.Reader, totalShards)
+		fill := make([]io.Writer, totalShards)
+		// Make all valid shards
 		// Only fill the missing data shards
-		for i := 0; i < numData; i++ {
-			b := bufs[i]
+		for i, b := range bufs {
 			if b != nil {
 				valid[i] = bytes.NewReader(b.Bytes())
-			} else {
+			} else if i < int(numData) {
 				b = &bytes.Buffer{}
 				bufs[i] = b
 				fill[i] = b
@@ -120,18 +121,18 @@ func NewReedSolomonDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGet
 		}
 	}
 
-	rsdr := &reedSolomonDagReader{}
 	// Now join to have the final combined file reader
-	shards := make(io.Reader, totalShards)
-	for i := 0; i < numData; i++ {
-		shards[i] = bytes.NewReader(b.Bytes())
+	shards := make([]io.Reader, totalShards)
+	for i := 0; i < int(numData); i++ {
+		shards[i] = bytes.NewReader(bufs[i].Bytes())
 	}
-	err = rss.Join(&rsdr.BytesBuffer, shards, size)
+	var dataBuf bytes.Buffer
+	err = rss.Join(&dataBuf, shards, int64(size))
 	if err != nil {
 		return nil, err
 	}
 
-	return rsdr, nil
+	return &reedSolomonDagReader{Reader: bytes.NewReader(dataBuf.Bytes())}, nil
 }
 
 // Size returns the total size of the data from the decoded DAG structured file

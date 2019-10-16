@@ -9,24 +9,18 @@ import (
 	"testing"
 
 	ft "github.com/TRON-US/go-unixfs"
+	balanced "github.com/TRON-US/go-unixfs/importer/balanced"
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
 	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 
-	cid "github.com/ipfs/go-cid"
 	chunker "github.com/TRON-US/go-btfs-chunker"
+	cid "github.com/ipfs/go-cid"
 	u "github.com/ipfs/go-ipfs-util"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdag "github.com/ipfs/go-merkledag"
 	mdagmock "github.com/ipfs/go-merkledag/test"
 	mh "github.com/multiformats/go-multihash"
 )
-
-// SizeSplitterGen creates a generator.
-func SizeSplitterGen(size int64) chunker.SplitterGen {
-	return func(r io.Reader) chunker.Splitter {
-		return chunker.NewSizeSplitter(r, size)
-	}
-}
 
 // GetDAGServ returns a mock DAGService.
 func GetDAGServ() ipld.DAGService {
@@ -40,6 +34,10 @@ type NodeOpts struct {
 	ForceRawLeaves bool
 	// RawLeavesUsed is true if raw leaves or either implicitly or explicitly enabled
 	RawLeavesUsed bool
+	// Enables reed solomon splitter
+	ReedSolomonEnabled bool
+	rsNumData          uint64
+	rsNumParity        uint64
 }
 
 // Some shorthands for NodeOpts.
@@ -49,6 +47,11 @@ var (
 	UseCidV1          = NodeOpts{Prefix: mdag.V1CidPrefix(), RawLeavesUsed: true}
 	UseBlake2b256     NodeOpts
 )
+
+func UseReedSolomon(numData, numParity uint64) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), ReedSolomonEnabled: true,
+		rsNumData: numData, rsNumParity: numParity}
+}
 
 func init() {
 	UseBlake2b256 = UseCidV1
@@ -67,7 +70,24 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 		RawLeaves:  opts.RawLeavesUsed,
 	}
 
-	db, err := dbp.New(SizeSplitterGen(500)(in))
+	if opts.ReedSolomonEnabled {
+		spl, err := chunker.NewReedSolomonSplitter(in, opts.rsNumData, opts.rsNumParity, 500)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, err := dbp.New(spl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		node, err := balanced.Layout(db)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return node
+	}
+
+	db, err := dbp.New(chunker.SizeSplitterGen(500)(in))
 	if err != nil {
 		t.Fatal(err)
 	}

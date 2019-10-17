@@ -51,11 +51,12 @@ package balanced
 
 import (
 	"errors"
-
 	ft "github.com/TRON-US/go-unixfs"
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
-
+	pb "github.com/TRON-US/go-unixfs/pb"
+	testu "github.com/TRON-US/go-unixfs/test"
 	ipld "github.com/ipfs/go-ipld-format"
+	dag "github.com/ipfs/go-merkledag"
 )
 
 // Layout builds a balanced DAG layout. In a balanced DAG of depth 1, leaf nodes
@@ -131,7 +132,7 @@ import (
 //
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	if !db.IsMultiDagBuilder() {
-		return layout(db)
+		return layout(db, db.IsThereMetaData() && !db.IsReedSolomon())
 	}
 
 	dbs := db.MultiHelpers()
@@ -172,9 +173,11 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	return root, db.Add(root)
 }
 
+const DEBUG = false
+
 // layout is the helper for the Layout logic except it can be invoked by Layout
 // multiple times for multi-split chunkers.
-func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
+func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 	if db.Done() {
 		// No data, return just an empty node.
 		root, err := db.NewLeafNode(nil, ft.TFile)
@@ -183,7 +186,12 @@ func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		}
 		// This works without Filestore support (`ProcessFileStore`).
 		// TODO: Why? Is there a test case missing?
-
+		if addMetaDag {
+			root, err = attachMetadataDag(db, root, 0)
+			if err != nil {
+				return nil, err
+			}
+		}
 		return root, db.Add(root)
 	}
 
@@ -191,16 +199,10 @@ func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	// (corner case), after that subsequent `root` nodes will
 	// always be internal nodes (with a depth > 0) that can
 	// be handled by the loop.
-	isThereTokenMeta := false
-	if db.GetTokenMetadata() != nil {
-		db.SetTokenMetaToProcess(true)
-		isThereTokenMeta = true
-	}
 	root, fileSize, err := db.NewLeafDataNode(ft.TFile)
 	if err != nil {
 		return nil, err
 	}
-	db.SetTokenMetaToProcess(false)
 
 	// Each time a DAG of a certain `depth` is filled (because it
 	// has reached its maximum capacity of `db.Maxlinks()` per node)
@@ -213,21 +215,65 @@ func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		if isThereTokenMeta {
-			// Set this flag to make DAG reader side's work easier.
-			newRoot.SetTokenMeta(true)
-		}
 
 		// Fill the `newRoot` (that has the old `root` already as child)
 		// and make it the current `root` for the next iteration (when
 		// it will become "old").
-		root, fileSize, err = fillNodeRec(db, newRoot, depth)
+		root, fileSize, err = fillNodeRec(db, newRoot, depth, ft.TFile)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	// Add token metadata DAG, if exists, as a child to the 'newRoot'.
+	if addMetaDag {
+		root, err = attachMetadataDag(db, root, fileSize)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if DEBUG {
+		droot := root.(*dag.ProtoNode)
+		testu.PrintDag(droot, db.Dserv, 4)
+	}
 	return root, db.Add(root)
+}
+
+// BuildMetadataDag builds a DAG for the given db.TokenMetadata byte array and
+// sets the root node to db.metaDagRoot.
+func BuildMetadataDag(db *h.DagBuilderHelper) error {
+	mdb := db.GetMetaDb()
+	mdb.SetDb(db)
+
+	root, fileSize, err := mdb.NewLeafDataNode(ft.TTokenMeta)
+	if err != nil {
+		return err
+	}
+
+	// Each time a DAG of a certain `depth` is filled (because it
+	// has reached its maximum capacity of `db.Maxlinks()` per node)
+	// extend it by making it a sub-DAG of a bigger DAG with `depth+1`.
+	for depth := 1; !mdb.Done(); depth++ {
+
+		// Add the old `root` as a child of the `newRoot`.
+		newRoot := mdb.NewFSNodeOverDag(ft.TTokenMeta)
+		err = newRoot.AddChild(root, fileSize, mdb)
+		if err != nil {
+			return err
+		}
+
+		// Fill the `newRoot` (that has the old `root` already as child)
+		// and make it the current `root` for the next iteration (when
+		// it will become "old").
+		root, fileSize, err = fillNodeRec(mdb, newRoot, depth, ft.TTokenMeta)
+		if err != nil {
+			return err
+		}
+	}
+
+	mdb.SetMetaDagRoot(root)
+	return mdb.Add(root)
 }
 
 // fillNodeRec will "fill" the given internal (non-leaf) `node` with data by
@@ -270,13 +316,13 @@ func layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 // seeking through the DAG when reading data later).
 //
 // warning: **children** pinned indirectly, but input node IS NOT pinned.
-func fillNodeRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, depth int) (filledNode ipld.Node, nodeFileSize uint64, err error) {
+func fillNodeRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, depth int, fsNodeType pb.Data_DataType) (filledNode ipld.Node, nodeFileSize uint64, err error) {
 	if depth < 1 {
 		return nil, 0, errors.New("attempt to fillNode at depth < 1")
 	}
 
 	if node == nil {
-		node = db.NewFSNodeOverDag(ft.TFile)
+		node = db.NewFSNodeOverDag(fsNodeType)
 	}
 
 	// Child node created on every iteration to add to parent `node`.
@@ -291,14 +337,14 @@ func fillNodeRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, depth int) (fill
 
 		if depth == 1 {
 			// Base case: add leaf node with data.
-			childNode, childFileSize, err = db.NewLeafDataNode(ft.TFile)
+			childNode, childFileSize, err = db.NewLeafDataNode(fsNodeType)
 			if err != nil {
 				return nil, 0, err
 			}
 		} else {
 			// Recursion case: create an internal node to in turn keep
 			// descending in the DAG and adding child nodes to it.
-			childNode, childFileSize, err = fillNodeRec(db, nil, depth-1)
+			childNode, childFileSize, err = fillNodeRec(db, nil, depth-1, fsNodeType)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -311,7 +357,6 @@ func fillNodeRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, depth int) (fill
 	}
 
 	nodeFileSize = node.FileSize()
-
 	// Get the final `dag.ProtoNode` with the `FSNode` data encoded inside.
 	filledNode, err = node.Commit()
 	if err != nil {
@@ -319,4 +364,50 @@ func fillNodeRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, depth int) (fill
 	}
 
 	return filledNode, nodeFileSize, nil
+}
+
+func attachMetadataDag(db *h.DagBuilderHelper, root ipld.Node, fileSize uint64) (ipld.Node, error) {
+	// Create a 'newRoot'.
+	newRoot := db.NewFSNodeOverDag(ft.TFile)
+
+	// Add metadata DAG as first child of 'newRoot'.
+	err := addMetadataChild(db, newRoot, db.GetMetaDb().GetMetaDagRoot())
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the data DAG 'root' to 'newRoot'.
+	err = newRoot.AddChild(root, fileSize, db)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit 'newRoot' to make 'root'
+	root, err = newRoot.Commit()
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
+}
+
+// Add the metadata DAG root 'mroot' as first child of 'newRoot'.
+func addMetadataChild(db *h.DagBuilderHelper, newRoot *h.FSNodeOverDag, mroot ipld.Node) error {
+	pnode, ok := mroot.(*dag.ProtoNode)
+	if !ok {
+		return h.ErrUnexpectedNodeType
+	}
+
+	fsn, err := ft.FSNodeFromBytes(pnode.Data())
+	if err != nil {
+		return err
+	}
+
+	metaFileSize := fsn.FileSize()
+	err = newRoot.AddChildDag(mroot, metaFileSize, db)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

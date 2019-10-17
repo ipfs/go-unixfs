@@ -9,8 +9,8 @@ import (
 
 	uio "github.com/TRON-US/go-unixfs/io"
 
-	cid "github.com/ipfs/go-cid"
 	chunker "github.com/TRON-US/go-btfs-chunker"
+	cid "github.com/ipfs/go-cid"
 	u "github.com/ipfs/go-ipfs-util"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdtest "github.com/ipfs/go-merkledag/test"
@@ -47,7 +47,7 @@ func TestStableCid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected, err := cid.Decode("QmZN1qquw84zhV4j6vT56tCcmFxaDaySL1ezTXFvMdNmrK")
+	expected, err := cid.Decode("Qmep9xXttbdG4UG4Qrwgq6dQP4TbEhUnrngz6ZioTo2D2A")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,9 +40,6 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	if db.IsMultiDagBuilder() {
 		return nil, fmt.Errorf("trickle layout does not support multi-splitter chunker")
 	}
-	if db.GetTokenMetadata() != nil {
-		db.SetTokenMetaToProcess(true)
-	}
 	newRoot := db.NewFSNodeOverDag(ft.TFile)
 	root, _, err := fillTrickleRec(db, newRoot, -1)
 	if err != nil {

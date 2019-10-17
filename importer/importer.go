@@ -22,6 +22,13 @@ func BuildDagFromReader(ds ipld.DAGService, spl chunker.Splitter) (ipld.Node, er
 	if err != nil {
 		return nil, err
 	}
+	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+		err := bal.BuildMetadataDag(db)
+		if err != nil {
+			return nil, err
+		}
+		db.SetMetaDagBuilt(true)
+	}
 	return bal.Layout(db)
 }
 

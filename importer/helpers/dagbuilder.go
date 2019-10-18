@@ -89,7 +89,7 @@ type DagBuilderParams struct {
 	TokenMetadata []byte
 
 	// Chunk size of the splitter
-	ChunkSize uint32
+	ChunkSize uint64
 }
 
 // New generates a new DagBuilderHelper from the given params and a given

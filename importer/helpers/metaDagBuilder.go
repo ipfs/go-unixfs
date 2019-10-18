@@ -11,7 +11,7 @@ import (
 
 type MetaSplitter struct {
 	r    io.Reader
-	size uint32
+	size uint64
 	err  error
 }
 
@@ -47,7 +47,7 @@ func (ms *MetaSplitter) Reader() io.Reader {
 func NewMetaSplitter(r io.Reader, size int64) chunker.Splitter {
 	return &MetaSplitter{
 		r:    r,
-		size: uint32(size),
+		size: uint64(size),
 	}
 }
 

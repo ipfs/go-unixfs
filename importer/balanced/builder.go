@@ -54,7 +54,6 @@ import (
 	ft "github.com/TRON-US/go-unixfs"
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
 	pb "github.com/TRON-US/go-unixfs/pb"
-	testu "github.com/TRON-US/go-unixfs/test"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
 )
@@ -173,8 +172,6 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	return root, db.Add(root)
 }
 
-const DEBUG = false
-
 // layout is the helper for the Layout logic except it can be invoked by Layout
 // multiple times for multi-split chunkers.
 func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
@@ -233,10 +230,6 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 		}
 	}
 
-	if DEBUG {
-		droot := root.(*dag.ProtoNode)
-		testu.PrintDag(droot, db.Dserv, 4)
-	}
 	return root, db.Add(root)
 }
 

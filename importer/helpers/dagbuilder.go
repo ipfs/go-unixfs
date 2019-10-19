@@ -26,6 +26,15 @@ var (
 	ErrUnexpectedProgramState = errors.New("unexpected program state occurred")
 )
 
+type DagBuilderHelperInterface interface {
+	Next() ([]byte, error)
+	NewFSNodeOverDag(pb.Data_DataType) *FSNodeOverDag
+	Maxlinks() int
+	Done() bool
+	Add(ipld.Node) error
+	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
+}
+
 // dagBuilderHelper contains the shared fields among various different helpers
 // under the same DAG.
 type dagBuilderHelper struct {
@@ -117,10 +126,8 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		}
 		db.metaDb = &MetaDagBuilderHelper{
 			metaSpl:     metaSpl,
-			recvdMErr:   nil,
-			nextMData:   nil,
 			metaDagRoot: nil,
-			db:          nil,
+			db:          DagBuilderHelper{},
 		}
 	}
 

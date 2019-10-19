@@ -242,10 +242,11 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 
 // BuildMetadataDag builds a DAG for the given db.TokenMetadata byte array and
 // sets the root node to db.metaDagRoot.
-func BuildMetadataDag(db *h.DagBuilderHelper) error {
+func BuildMetadataDag(db h.DagBuilderHelper) error {
 	mdb := db.GetMetaDb()
 	mdb.SetDb(db)
 
+	mdb.SetSpl()
 	root, fileSize, err := mdb.NewLeafDataNode(ft.TTokenMeta)
 	if err != nil {
 		return err

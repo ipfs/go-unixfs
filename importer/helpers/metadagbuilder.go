@@ -51,55 +51,22 @@ func NewMetaSplitter(r io.Reader, size int64) chunker.Splitter {
 	}
 }
 
-type DagBuilderHelperInterface interface {
-	NewFSNodeOverDag(pb.Data_DataType) *FSNodeOverDag
-	Maxlinks() int
-	Done() bool
-	Add(ipld.Node) error
-	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
-}
-
 type MetaDagBuilderHelper struct {
-	db          *DagBuilderHelper
+	db          DagBuilderHelper
 	metaSpl     MetaSplitter
-	recvdMErr   error
-	nextMData   []byte    // next metadata chunk to return
 	metaDagRoot ipld.Node // Metadata Dag root node
 }
 
-func (mdb *MetaDagBuilderHelper) prepareNext() {
-	// if we already have data waiting to be consumed, we're ready
-	if mdb.nextMData != nil || mdb.recvdMErr != nil {
-		return
-	}
-
-	mdb.nextMData, mdb.recvdMErr = mdb.metaSpl.NextBytes()
-	if mdb.recvdMErr == io.EOF {
-		mdb.recvdMErr = nil
-	}
+func (mdb *MetaDagBuilderHelper) SetSpl() {
+	mdb.db.spl = &mdb.metaSpl
 }
 
-// MetaDone returns whether or not we're done consuming the token meta data.
 func (mdb *MetaDagBuilderHelper) Done() bool {
-	mdb.prepareNext() // idempotent
-	if mdb.recvdMErr != nil {
-		return false
-	}
-	return mdb.nextMData == nil
+	return mdb.db.Done()
 }
 
-// Next returns the next chunk of token meta data.
-// reset the meta chunk read state and returns nil if EOF.
-// In this case, the DAG build should finish.
 func (mdb *MetaDagBuilderHelper) Next() ([]byte, error) {
-	mdb.prepareNext() // idempotent
-	md := mdb.nextMData
-	// Reset the DagBuilder chunk read state.
-	mdb.nextMData = nil
-	if mdb.recvdMErr != nil {
-		return nil, mdb.recvdMErr
-	}
-	return md, nil
+	return mdb.db.Next()
 }
 
 func (mdb *MetaDagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType) (ipld.Node, error) {
@@ -152,11 +119,11 @@ func (mdb *MetaDagBuilderHelper) GetMetaDagRoot() ipld.Node {
 }
 
 // SetDb sets metadata DAG root
-func (mdb *MetaDagBuilderHelper) SetDb(db *DagBuilderHelper) {
+func (mdb *MetaDagBuilderHelper) SetDb(db DagBuilderHelper) {
 	mdb.db = db
 }
 
 // GetDb returns the DagbuilderHelper
-func (mdb *MetaDagBuilderHelper) GetDb() *DagBuilderHelper {
+func (mdb *MetaDagBuilderHelper) GetDb() DagBuilderHelper {
 	return mdb.db
 }

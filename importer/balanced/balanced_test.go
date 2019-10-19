@@ -343,7 +343,7 @@ func buildMetaTestDag(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter
 		Dagserv:       ds,
 		Maxlinks:      maxlinks,
 		TokenMetadata: metadata,
-		ChunkSize:     uint32(chunksize),
+		ChunkSize:     uint64(chunksize),
 	}
 
 	db, err := dbp.New(dataspl)
@@ -352,7 +352,7 @@ func buildMetaTestDag(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter
 	}
 
 	// Invoke the driver to create metadata dag
-	err = BuildMetadataDag(db)
+	err = BuildMetadataDag(*db)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func buildTestDagWithMetadata(ds ipld.DAGService, maxlinks int, dataspl chunker.
 		Dagserv:       ds,
 		Maxlinks:      maxlinks,
 		TokenMetadata: metadata,
-		ChunkSize:     uint32(chunksize),
+		ChunkSize:     uint64(chunksize),
 	}
 
 	db, err := dbp.New(dataspl)
@@ -416,7 +416,7 @@ func buildTestDagWithMetadata(ds ipld.DAGService, maxlinks int, dataspl chunker.
 
 	// Execute the drivers to create metadata and data dags.
 	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
-		err := BuildMetadataDag(db)
+		err := BuildMetadataDag(*db)
 		if err != nil {
 			return nil, err
 		}
@@ -447,6 +447,10 @@ func getTestDagWithMetadata(t *testing.T, ds ipld.DAGService, dsize int64, maxli
 func getRootsForDataAndMetadata(t *testing.T, root ipld.Node, ds ipld.DAGService) (*dag.ProtoNode, *dag.ProtoNode, error) {
 	var nodes [2]ipld.Node
 
+	if len(root.Links()) < 2 {
+		return nil, nil, h.ErrUnexpectedProgramState
+	}
+
 	for i := 0; i < 2; i++ {
 		lnk := root.Links()[i]
 		c := lnk.Cid
@@ -464,6 +468,9 @@ func testTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte
 	nd, should, mshould := getTestDagWithMetadata(t, ds, dsize, maxlinks, mdata, chksize)
 
 	mnd, dnd, err := getRootsForDataAndMetadata(t, nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mr, err := uio.NewDagReader(context.Background(), mnd, ds)
 	if err != nil {
 		t.Fatal(err)

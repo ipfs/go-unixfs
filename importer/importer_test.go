@@ -47,7 +47,7 @@ func TestStableCid(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected, err := cid.Decode("Qmep9xXttbdG4UG4Qrwgq6dQP4TbEhUnrngz6ZioTo2D2A")
+	expected, err := cid.Decode("QmZN1qquw84zhV4j6vT56tCcmFxaDaySL1ezTXFvMdNmrK")
 	if err != nil {
 		t.Fatal(err)
 	}

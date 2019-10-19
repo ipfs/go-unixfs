@@ -139,18 +139,20 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		n   ipld.Node
 		err error
 	}
-	dbc := make(chan ne)
+	dbcs := make([]chan ne, len(dbs))
 	// Build sub trees concurrently
-	for _, dbh := range dbs {
-		go func(db *h.DagBuilderHelper) {
+	for i, dbh := range dbs {
+		dbcs[i] = make(chan ne)
+		go func(db *h.DagBuilderHelper, dbc chan ne) {
 			n, err := Layout(db)
 			dbc <- ne{n, err}
-		}(dbh)
+		}(dbh, dbcs[i])
 	}
 	// Create the new root and attach the shard roots as children
+	// Must be added in the original order
 	newRoot := db.NewFSNodeOverDag(ft.TFile)
 	for i := 0; i < len(dbs); i++ {
-		res := <-dbc
+		res := <-dbcs[i]
 		if res.err != nil {
 			return nil, res.err
 		}

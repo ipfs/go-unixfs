@@ -119,8 +119,8 @@ func (mdb *MetaDagBuilderHelper) GetMetaDagRoot() ipld.Node {
 }
 
 // SetDb sets metadata DAG root
-func (mdb *MetaDagBuilderHelper) SetDb(db DagBuilderHelper) {
-	mdb.db = db
+func (mdb *MetaDagBuilderHelper) SetDb(db *DagBuilderHelper) {
+	mdb.db = *db
 }
 
 // GetDb returns the DagbuilderHelper

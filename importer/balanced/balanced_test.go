@@ -352,7 +352,7 @@ func buildMetaTestDag(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter
 	}
 
 	// Invoke the driver to create metadata dag
-	err = BuildMetadataDag(*db)
+	err = BuildMetadataDag(db)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +416,7 @@ func buildTestDagWithMetadata(ds ipld.DAGService, maxlinks int, dataspl chunker.
 
 	// Execute the drivers to create metadata and data dags.
 	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
-		err := BuildMetadataDag(*db)
+		err := BuildMetadataDag(db)
 		if err != nil {
 			return nil, err
 		}
@@ -463,7 +463,7 @@ func getRootsForDataAndMetadata(t *testing.T, root ipld.Node, ds ipld.DAGService
 	return nodes[0].(*dag.ProtoNode), nodes[1].(*dag.ProtoNode), nil
 }
 
-func testTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte, chksize int64) {
+func testUserDataWithTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte, chksize int64) {
 	ds := mdtest.Mock()
 	nd, should, mshould := getTestDagWithMetadata(t, ds, dsize, maxlinks, mdata, chksize)
 
@@ -486,10 +486,10 @@ func testTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte
 
 func TestBasicUserdataWithTokenMetadataRead(t *testing.T) {
 	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
-	testTokenMetadataRead(t, 512, 2, b, 512)
+	testUserDataWithTokenMetadataRead(t, 512, 2, b, 512)
 }
 
 func TestNoUserdataWithTokenMetadataRead(t *testing.T) {
 	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
-	testTokenMetadataRead(t, 0, 2, b, 512)
+	testUserDataWithTokenMetadataRead(t, 0, 2, b, 512)
 }

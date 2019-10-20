@@ -48,7 +48,6 @@ type dagBuilderHelper struct {
 
 	metaDb       *MetaDagBuilderHelper
 	metaDagBuilt bool
-	reedSolomon  bool
 
 	// Filestore support variables.
 	// ----------------------------
@@ -99,6 +98,9 @@ type DagBuilderParams struct {
 
 	// Chunk size of the splitter
 	ChunkSize uint64
+
+	// MetadataProcessed indicates whether token metadata is processed or not.
+	MetadataProcessed bool
 }
 
 // New generates a new DagBuilderHelper from the given params and a given
@@ -118,7 +120,7 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		db.stat = fi.Stat()
 	}
 
-	if dbp.TokenMetadata != nil {
+	if dbp.TokenMetadata != nil && !dbp.MetadataProcessed {
 		r := bytes.NewReader(dbp.TokenMetadata)
 		metaSpl := MetaSplitter{
 			r:    r,
@@ -129,6 +131,7 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 			metaDagRoot: nil,
 			db:          DagBuilderHelper{},
 		}
+		dbp.MetadataProcessed = true
 	}
 
 	if dbp.NoCopy && db.fullPath == "" { // Enforce NoCopy
@@ -170,11 +173,6 @@ func (db *DagBuilderHelper) IsMetaDagBuilt() bool {
 // SetMetaDagBuilt sets db.metaDagBuilt with the given bool value.
 func (db *DagBuilderHelper) SetMetaDagBuilt(v bool) {
 	db.metaDagBuilt = v
-}
-
-// isMReedSolomon returns the db.reedSolomon bool value.
-func (db *DagBuilderHelper) IsReedSolomon() bool {
-	return db.reedSolomon
 }
 
 // prepareNext consumes the next item from the splitter and puts it

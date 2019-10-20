@@ -131,7 +131,7 @@ import (
 //
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	if !db.IsMultiDagBuilder() {
-		return layout(db, db.IsThereMetaData() && !db.IsReedSolomon())
+		return layout(db, db.IsThereMetaData())
 	}
 
 	dbs := db.MultiHelpers()
@@ -168,6 +168,18 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	root, err := newRoot.Commit()
 	if err != nil {
 		return nil, err
+	}
+
+	// Add token metadata DAG, if exists, as a child to a new 'newRoot'.
+	if db.IsThereMetaData() {
+		fileSize, err := root.Size()
+		if err != nil {
+			return nil, err
+		}
+		root, err = attachMetadataDag(db, root, fileSize)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return root, db.Add(root)
 }
@@ -235,7 +247,7 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 
 // BuildMetadataDag builds a DAG for the given db.TokenMetadata byte array and
 // sets the root node to db.metaDagRoot.
-func BuildMetadataDag(db h.DagBuilderHelper) error {
+func BuildMetadataDag(db *h.DagBuilderHelper) error {
 	mdb := db.GetMetaDb()
 	mdb.SetDb(db)
 

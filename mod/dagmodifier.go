@@ -13,8 +13,8 @@ import (
 	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 	uio "github.com/TRON-US/go-unixfs/io"
 
-	cid "github.com/ipfs/go-cid"
 	chunker "github.com/TRON-US/go-btfs-chunker"
+	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdag "github.com/ipfs/go-merkledag"
 )

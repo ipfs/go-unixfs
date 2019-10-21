@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -12,27 +13,41 @@ import (
 	pb "github.com/TRON-US/go-unixfs/pb"
 
 	chunker "github.com/TRON-US/go-btfs-chunker"
-	cid "github.com/ipfs/go-cid"
 	files "github.com/TRON-US/go-btfs-files"
+	cid "github.com/ipfs/go-cid"
 	pi "github.com/ipfs/go-ipfs-posinfo"
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
-var ErrMissingFsRef = errors.New("missing file path or URL, can't create filestore reference")
+var (
+	ErrMissingFsRef           = errors.New("missing file path or URL, can't create filestore reference")
+	ErrUnknownNodeType        = errors.New("unknown node type")
+	ErrUnexpectedNodeType     = errors.New("unexpected node type")
+	ErrUnexpectedProgramState = errors.New("unexpected program state occurred")
+)
+
+type DagBuilderHelperInterface interface {
+	Next() ([]byte, error)
+	NewFSNodeOverDag(pb.Data_DataType) *FSNodeOverDag
+	Maxlinks() int
+	Done() bool
+	Add(ipld.Node) error
+	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
+}
 
 // dagBuilderHelper contains the shared fields among various different helpers
 // under the same DAG.
 type dagBuilderHelper struct {
-	dserv              ipld.DAGService
-	spl                chunker.Splitter
-	recvdErr           error
-	rawLeaves          bool
-	nextData           []byte // the next item to return.
-	maxlinks           int
-	cidBuilder         cid.Builder
-	tokenMetadata      []byte
-	tokenMetaToProcess bool   // Need to add the tokenMetadata to the current UnixFs node?
-	metaOffset         uint64 // starting offset of token metadata within the data block
+	dserv      ipld.DAGService
+	spl        chunker.Splitter
+	recvdErr   error
+	rawLeaves  bool
+	nextData   []byte // the next item to return.
+	maxlinks   int
+	cidBuilder cid.Builder
+
+	metaDb       *MetaDagBuilderHelper
+	metaDagBuilt bool
 
 	// Filestore support variables.
 	// ----------------------------
@@ -80,6 +95,12 @@ type DagBuilderParams struct {
 
 	// Token metadata to be added to the first UnixFs node.
 	TokenMetadata []byte
+
+	// Chunk size of the splitter
+	ChunkSize uint64
+
+	// MetadataProcessed indicates whether token metadata is processed or not.
+	MetadataProcessed bool
 }
 
 // New generates a new DagBuilderHelper from the given params and a given
@@ -99,8 +120,15 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		db.stat = fi.Stat()
 	}
 
-	if dbp.TokenMetadata != nil {
-		db.tokenMetadata = dbp.TokenMetadata
+	if dbp.TokenMetadata != nil && !dbp.MetadataProcessed {
+		r := bytes.NewReader(dbp.TokenMetadata)
+		metaSpl := chunker.NewMetaSplitter(r, dbp.ChunkSize)
+		db.metaDb = &MetaDagBuilderHelper{
+			metaSpl:     metaSpl,
+			metaDagRoot: nil,
+			db:          DagBuilderHelper{},
+		}
+		dbp.MetadataProcessed = true
 	}
 
 	if dbp.NoCopy && db.fullPath == "" { // Enforce NoCopy
@@ -132,6 +160,16 @@ func (db *DagBuilderHelper) IsMultiDagBuilder() bool {
 // MultiHelpers returns the sub DagBuilderHelpers under self.
 func (db *DagBuilderHelper) MultiHelpers() []*DagBuilderHelper {
 	return db.dbs
+}
+
+// isMetaDagBuilt returns the db.metaDagBuilt bool value.
+func (db *DagBuilderHelper) IsMetaDagBuilt() bool {
+	return db.metaDagBuilt
+}
+
+// SetMetaDagBuilt sets db.metaDagBuilt with the given bool value.
+func (db *DagBuilderHelper) SetMetaDagBuilt(v bool) {
+	db.metaDagBuilt = v
 }
 
 // prepareNext consumes the next item from the splitter and puts it
@@ -183,14 +221,14 @@ func (db *DagBuilderHelper) GetCidBuilder() cid.Builder {
 	return db.cidBuilder
 }
 
-// GetTokenMetadata returns token metadata []byte.
-func (db *DagBuilderHelper) GetTokenMetadata() []byte {
-	return db.tokenMetadata
+// isThereMetaData returns whether token metadata exists.
+func (db *DagBuilderHelper) IsThereMetaData() bool {
+	return db.metaDb != nil
 }
 
-// SetTokenMetaToProcess sets v to tokenMetaToProcess.
-func (db *DagBuilderHelper) SetTokenMetaToProcess(v bool) {
-	db.tokenMetaToProcess = v
+// GetMetaDb returns the metadata DAG build helper this Helper is using
+func (db *DagBuilderHelper) GetMetaDb() *MetaDagBuilderHelper {
+	return db.metaDb
 }
 
 // NewLeafNode creates a leaf node filled with data.  If rawLeaves is
@@ -215,10 +253,6 @@ func (db *DagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType
 
 	// Encapsulate the data in UnixFS node (instead of a raw node).
 	fsNodeOverDag := db.NewFSNodeOverDag(fsNodeType)
-	if db.tokenMetaToProcess {
-		fsNodeOverDag.SetTokenMeta(true)
-		fsNodeOverDag.SetMetadataOffset(db.metaOffset)
-	}
 	fsNodeOverDag.SetFileData(data)
 	node, err := fsNodeOverDag.Commit()
 	if err != nil {
@@ -243,9 +277,6 @@ func (db *DagBuilderHelper) FillNodeLayer(node *FSNodeOverDag) error {
 		if err != nil {
 			return err
 		}
-		if db.tokenMetaToProcess {
-			db.SetTokenMetaToProcess(false)
-		}
 		if err := node.AddChild(child, childFileSize, db); err != nil {
 			return err
 		}
@@ -269,15 +300,10 @@ func (db *DagBuilderHelper) NewLeafDataNode(fsNodeType pb.Data_DataType) (node i
 	if err != nil {
 		return nil, 0, err
 	}
-	finalData := fileData
-	if db.tokenMetaToProcess {
-		finalData = append(fileData, db.tokenMetadata...)
-		db.metaOffset = uint64(len(fileData))
-	}
-	dataSize = uint64(len(finalData))
+	dataSize = uint64(len(fileData))
 
 	// Create a new leaf node containing the file chunk data.
-	node, err = db.NewLeafNode(finalData, fsNodeType)
+	node, err = db.NewLeafNode(fileData, fsNodeType)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -392,7 +418,7 @@ func NewFSNFromDag(nd *dag.ProtoNode) (*FSNodeOverDag, error) {
 // `ft.FSNode` stores its file size (that is, not the size of the
 // node but the size of the file data that it is storing at the
 // UnixFS layer). The child is also stored in the `DAGService`.
-func (n *FSNodeOverDag) AddChild(child ipld.Node, fileSize uint64, db *DagBuilderHelper) error {
+func (n *FSNodeOverDag) AddChild(child ipld.Node, fileSize uint64, db DagBuilderHelperInterface) error {
 	err := n.dag.AddNodeLink("", child)
 	if err != nil {
 		return err
@@ -401,6 +427,18 @@ func (n *FSNodeOverDag) AddChild(child ipld.Node, fileSize uint64, db *DagBuilde
 	n.file.AddBlockSize(fileSize)
 
 	return db.Add(child)
+}
+
+// AddChildDag adds the DAG topped by the given "child"
+// whose DAG descendents are already added into blockservice.
+func (n *FSNodeOverDag) AddChildDag(child ipld.Node, fileSize uint64, db *DagBuilderHelper) error {
+	err := n.dag.AddNodeLink("", child)
+	if err != nil {
+		return err
+	}
+
+	n.file.AddBlockSize(fileSize)
+	return nil
 }
 
 // RemoveChild deletes the child node at the given index.
@@ -440,29 +478,6 @@ func (n *FSNodeOverDag) FileSize() uint64 {
 // node (internal nodes don't carry data, just file sizes).
 func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 	n.file.SetData(fileData)
-}
-
-// MetadataOffset retrieves the 'token metadata starting offset within
-// the 'fileData'.
-func (n *FSNodeOverDag) MetadataOffset() uint64 {
-	return n.file.MetaOffset()
-}
-
-// SetMetaOffset stores the 'token metadata starting offset within
-// the 'fileData'.
-func (n *FSNodeOverDag) SetMetadataOffset(moffset uint64) {
-	n.file.SetMetaOffset(moffset)
-}
-
-// IsThereTokenMeta returns the bool value from the underlying
-// representation of the 'ft.FSNode'.
-func (n *FSNodeOverDag) IsThereTokenMeta() bool {
-	return n.file.IsThereTokenMeta()
-}
-
-// SetTokenMeta stores the 'token meta bool value' within the 'fileData'.
-func (n *FSNodeOverDag) SetTokenMeta(tokenMetadata bool) {
-	n.file.SetTokenMeta(tokenMetadata)
 }
 
 // GetDagNode fills out the proper formatting for the FSNodeOverDag node

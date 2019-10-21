@@ -53,6 +53,18 @@ func getTestDag(t *testing.T, ds ipld.DAGService, size int64, blksize int64) (*d
 	return nd, data
 }
 
+func testFileConsistency(t *testing.T, nbytes int64, chunksize int64) {
+	ds := mdtest.Mock()
+	nd, should := getTestDag(t, ds, nbytes, chunksize)
+
+	r, err := uio.NewDagReader(context.Background(), nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dagrArrComp(t, r, should)
+}
+
 //Test where calls to read are smaller than the chunk size
 func TestSizeBasedSplit(t *testing.T) {
 	if testing.Short() {
@@ -64,18 +76,6 @@ func TestSizeBasedSplit(t *testing.T) {
 
 	// Uneven offset
 	testFileConsistency(t, 31*4095, 4096)
-}
-
-func testFileConsistency(t *testing.T, nbytes int64, blksize int64) {
-	ds := mdtest.Mock()
-	nd, should := getTestDag(t, ds, nbytes, blksize)
-
-	r, err := uio.NewDagReader(context.Background(), nd, ds)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dagrArrComp(t, r, should)
 }
 
 func TestBuilderConsistency(t *testing.T) {
@@ -336,4 +336,160 @@ func TestSeekingConsistency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func buildMetaTestDag(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter, metadata []byte, chunksize int64) (*dag.ProtoNode, error) {
+	dbp := h.DagBuilderParams{
+		Dagserv:       ds,
+		Maxlinks:      maxlinks,
+		TokenMetadata: metadata,
+		ChunkSize:     uint64(chunksize),
+	}
+
+	db, err := dbp.New(dataspl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Invoke the driver to create metadata dag
+	err = BuildMetadataDag(db)
+	if err != nil {
+		return nil, err
+	}
+
+	mdb := db.GetMetaDb()
+	nd := mdb.GetMetaDagRoot()
+
+	return nd.(*dag.ProtoNode), nil
+}
+
+func getTestMetaDag(t *testing.T, ds ipld.DAGService, maxlinks int, metadata []byte, chunksize int64) (*dag.ProtoNode, []byte) {
+	r := bytes.NewReader(metadata)
+
+	nd, err := buildMetaTestDag(ds, maxlinks, chunker.NewMetaSplitter(r, uint64(chunksize)), metadata, chunksize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return nd, metadata
+}
+
+func testMetaDataConsistency(t *testing.T, maxlinks int, data []byte, chunksize int64) {
+	ds := mdtest.Mock()
+	nd, should := getTestMetaDag(t, ds, maxlinks, data, chunksize)
+
+	r, err := uio.NewDagReader(context.Background(), nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dagrArrComp(t, r, should)
+}
+
+func TestMetaDataBasicConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testMetaDataConsistency(t, h.DefaultLinksPerBlock, b, chunker.DefaultBlockSize)
+}
+
+func TestMetaDataTwoLevelDagConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testMetaDataConsistency(t, 4, b, 32)
+}
+
+func TestMetaDataThreeLevelDagConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testMetaDataConsistency(t, 4, b, 8)
+}
+
+func buildTestDagWithMetadata(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter, metadata []byte, chunksize int64) (*dag.ProtoNode, error) {
+	dbp := h.DagBuilderParams{
+		Dagserv:       ds,
+		Maxlinks:      maxlinks,
+		TokenMetadata: metadata,
+		ChunkSize:     uint64(chunksize),
+	}
+
+	db, err := dbp.New(dataspl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute the drivers to create metadata and data dags.
+	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+		err := BuildMetadataDag(db)
+		if err != nil {
+			return nil, err
+		}
+		db.SetMetaDagBuilt(true)
+	}
+
+	nd, err := Layout(db)
+	if err != nil {
+		return nil, err
+	}
+
+	return nd.(*dag.ProtoNode), nil
+}
+
+func getTestDagWithMetadata(t *testing.T, ds ipld.DAGService, dsize int64, maxlinks int, metadata []byte, chksize int64) (*dag.ProtoNode, []byte, []byte) {
+	data := make([]byte, dsize)
+	u.NewTimeSeededRand().Read(data)
+	dr := bytes.NewReader(data)
+
+	nd, err := buildTestDagWithMetadata(ds, maxlinks, chunker.NewSizeSplitter(dr, chksize), metadata, chksize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return nd, data, metadata
+}
+
+func getRootsForDataAndMetadata(t *testing.T, root ipld.Node, ds ipld.DAGService) (*dag.ProtoNode, *dag.ProtoNode, error) {
+	var nodes [2]ipld.Node
+
+	if len(root.Links()) < 2 {
+		return nil, nil, h.ErrUnexpectedProgramState
+	}
+
+	for i := 0; i < 2; i++ {
+		lnk := root.Links()[i]
+		c := lnk.Cid
+		child, err := ds.Get(context.Background(), c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes[i] = child
+	}
+	return nodes[0].(*dag.ProtoNode), nodes[1].(*dag.ProtoNode), nil
+}
+
+func testUserDataWithTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte, chksize int64) {
+	ds := mdtest.Mock()
+	nd, should, mshould := getTestDagWithMetadata(t, ds, dsize, maxlinks, mdata, chksize)
+
+	mnd, dnd, err := getRootsForDataAndMetadata(t, nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mr, err := uio.NewDagReader(context.Background(), mnd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := uio.NewDagReader(context.Background(), dnd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dagrArrComp(t, mr, mshould)
+	dagrArrComp(t, r, should)
+}
+
+func TestBasicUserdataWithTokenMetadataRead(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testUserDataWithTokenMetadataRead(t, 512, 2, b, 512)
+}
+
+func TestNoUserdataWithTokenMetadataRead(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testUserDataWithTokenMetadataRead(t, 0, 2, b, 512)
 }

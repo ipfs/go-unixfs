@@ -22,6 +22,13 @@ import (
 	mh "github.com/multiformats/go-multihash"
 )
 
+// SizeSplitterGen creates a generator.
+func SizeSplitterGen(size int64) chunker.SplitterGen {
+	return func(r io.Reader) chunker.Splitter {
+		return chunker.NewSizeSplitter(r, size)
+	}
+}
+
 // GetDAGServ returns a mock DAGService.
 func GetDAGServ() ipld.DAGService {
 	return mdagmock.Mock()
@@ -38,6 +45,8 @@ type NodeOpts struct {
 	ReedSolomonEnabled bool
 	rsNumData          uint64
 	rsNumParity        uint64
+	metadata           []byte
+	chunkSize          uint64
 }
 
 // Some shorthands for NodeOpts.
@@ -48,9 +57,10 @@ var (
 	UseBlake2b256     NodeOpts
 )
 
-func UseReedSolomon(numData, numParity uint64) NodeOpts {
+func UseReedSolomon(numData, numParity uint64, mdata []byte, chkSize uint64) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), ReedSolomonEnabled: true,
-		rsNumData: numData, rsNumParity: numParity}
+		rsNumData: numData, rsNumParity: numParity, metadata: mdata,
+		chunkSize: chkSize}
 }
 
 func init() {
@@ -64,10 +74,12 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 	in := bytes.NewReader(data)
 
 	dbp := h.DagBuilderParams{
-		Dagserv:    dserv,
-		Maxlinks:   h.DefaultLinksPerBlock,
-		CidBuilder: opts.Prefix,
-		RawLeaves:  opts.RawLeavesUsed,
+		Dagserv:       dserv,
+		Maxlinks:      h.DefaultLinksPerBlock,
+		CidBuilder:    opts.Prefix,
+		RawLeaves:     opts.RawLeavesUsed,
+		TokenMetadata: opts.metadata,
+		ChunkSize:     opts.chunkSize,
 	}
 
 	if opts.ReedSolomonEnabled {
@@ -79,6 +91,15 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+			err := balanced.BuildMetadataDag(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db.SetMetaDagBuilt(true)
+		}
+
 		node, err := balanced.Layout(db)
 		if err != nil {
 			t.Fatal(err)

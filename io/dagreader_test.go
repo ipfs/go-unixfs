@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	mdag "github.com/ipfs/go-merkledag"
 	"github.com/TRON-US/go-unixfs"
+	mdag "github.com/ipfs/go-merkledag"
 
-	context "context"
+	"context"
 
 	testu "github.com/TRON-US/go-unixfs/test"
 )

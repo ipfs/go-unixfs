@@ -6,9 +6,9 @@ import (
 	"errors"
 	"io"
 
+	unixfs "github.com/TRON-US/go-unixfs"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdag "github.com/ipfs/go-merkledag"
-	unixfs "github.com/TRON-US/go-unixfs"
 )
 
 // Common errors
@@ -55,7 +55,7 @@ func NewDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (DagRe
 		}
 
 		switch fsNode.Type() {
-		case unixfs.TFile, unixfs.TRaw:
+		case unixfs.TFile, unixfs.TRaw, unixfs.TTokenMeta:
 			size = fsNode.FileSize()
 
 		case unixfs.TDirectory, unixfs.THAMTShard:

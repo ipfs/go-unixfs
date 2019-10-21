@@ -44,6 +44,11 @@ func (ms *MetaSplitter) Reader() io.Reader {
 	return ms.r
 }
 
+// ChunkSize returns the chunk size of this Splitter.
+func (rss *MetaSplitter) ChunkSize() uint64 {
+	return uint64(rss.size)
+}
+
 func NewMetaSplitter(r io.Reader, size int64) chunker.Splitter {
 	return &MetaSplitter{
 		r:    r,

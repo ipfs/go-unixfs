@@ -38,7 +38,7 @@ type DagBuilderHelperInterface interface {
 // dagBuilderHelper contains the shared fields among various different helpers
 // under the same DAG.
 type dagBuilderHelper struct {
-	Dserv      ipld.DAGService
+	dserv      ipld.DAGService
 	spl        chunker.Splitter
 	recvdErr   error
 	rawLeaves  bool
@@ -109,7 +109,7 @@ type DagBuilderParams struct {
 // will contain underlying DagBuilderHelpers.
 func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error) {
 	db := dagBuilderHelper{
-		Dserv:      dbp.Dagserv,
+		dserv:      dbp.Dagserv,
 		spl:        spl,
 		rawLeaves:  dbp.RawLeaves,
 		cidBuilder: dbp.CidBuilder,
@@ -122,10 +122,7 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 
 	if dbp.TokenMetadata != nil && !dbp.MetadataProcessed {
 		r := bytes.NewReader(dbp.TokenMetadata)
-		metaSpl := MetaSplitter{
-			r:    r,
-			size: dbp.ChunkSize,
-		}
+		metaSpl := chunker.NewMetaSplitter(r, dbp.ChunkSize)
 		db.metaDb = &MetaDagBuilderHelper{
 			metaSpl:     metaSpl,
 			metaDagRoot: nil,
@@ -216,7 +213,7 @@ func (db *DagBuilderHelper) Next() ([]byte, error) {
 
 // GetDagServ returns the dagservice object this Helper is using
 func (db *DagBuilderHelper) GetDagServ() ipld.DAGService {
-	return db.Dserv
+	return db.dserv
 }
 
 // GetCidBuilder returns the internal `cid.CidBuilder` set in the builder.
@@ -353,7 +350,7 @@ func (db *DagBuilderHelper) ProcessFileStore(node ipld.Node, dataSize uint64) ip
 
 // Add inserts the given node in the DAGService.
 func (db *DagBuilderHelper) Add(node ipld.Node) error {
-	return db.Dserv.Add(context.TODO(), node)
+	return db.dserv.Add(context.TODO(), node)
 }
 
 // Maxlinks returns the configured maximum number for links

@@ -366,7 +366,7 @@ func buildMetaTestDag(ds ipld.DAGService, maxlinks int, dataspl chunker.Splitter
 func getTestMetaDag(t *testing.T, ds ipld.DAGService, maxlinks int, metadata []byte, chunksize int64) (*dag.ProtoNode, []byte) {
 	r := bytes.NewReader(metadata)
 
-	nd, err := buildMetaTestDag(ds, maxlinks, h.NewMetaSplitter(r, chunksize), metadata, chunksize)
+	nd, err := buildMetaTestDag(ds, maxlinks, chunker.NewMetaSplitter(r, uint64(chunksize)), metadata, chunksize)
 	if err != nil {
 		t.Fatal(err)
 	}

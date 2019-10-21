@@ -1,69 +1,20 @@
 package helpers
 
 import (
-	"io"
-
 	chunker "github.com/TRON-US/go-btfs-chunker"
 	ft "github.com/TRON-US/go-unixfs"
 	pb "github.com/TRON-US/go-unixfs/pb"
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
-type MetaSplitter struct {
-	r    io.Reader
-	size uint64
-	err  error
-}
-
-// NextBytes produces a new chunk.
-func (ms *MetaSplitter) NextBytes() ([]byte, error) {
-	if ms.err != nil {
-		return nil, ms.err
-	}
-
-	// Return a new metadata chunk
-	buf := make([]byte, ms.size)
-	n, err := io.ReadFull(ms.r, buf)
-	switch err {
-	case io.ErrUnexpectedEOF:
-		ms.err = io.EOF
-		small := make([]byte, n)
-		copy(small, buf)
-		buf = nil
-		return small, nil
-	case nil:
-		return buf, nil
-	default:
-		buf = nil
-		return nil, err
-	}
-}
-
-// Reader returns the io.Reader associated to this Splitter.
-func (ms *MetaSplitter) Reader() io.Reader {
-	return ms.r
-}
-
-// ChunkSize returns the chunk size of this Splitter.
-func (rss *MetaSplitter) ChunkSize() uint64 {
-	return uint64(rss.size)
-}
-
-func NewMetaSplitter(r io.Reader, size int64) chunker.Splitter {
-	return &MetaSplitter{
-		r:    r,
-		size: uint64(size),
-	}
-}
-
 type MetaDagBuilderHelper struct {
 	db          DagBuilderHelper
-	metaSpl     MetaSplitter
+	metaSpl     chunker.Splitter
 	metaDagRoot ipld.Node // Metadata Dag root node
 }
 
 func (mdb *MetaDagBuilderHelper) SetSpl() {
-	mdb.db.spl = &mdb.metaSpl
+	mdb.db.spl = mdb.metaSpl
 }
 
 func (mdb *MetaDagBuilderHelper) Done() bool {

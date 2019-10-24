@@ -239,6 +239,54 @@ func TestReaderSzie(t *testing.T) {
 	}
 }
 
+func TestMetadataRead(t *testing.T) {
+	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	dserv := testu.GetDAGServ()
+
+	inbuf, node := testu.GetRandomNode(t, dserv, 500,
+		testu.UseBalancedWithMetadata(inputMdata, 512))
+	ctx, closer := context.WithCancel(context.Background())
+	defer closer()
+
+	mnode, err := unixfs.GetMetaSubdagRoot(ctx, node, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dnode, err := node.Links()[1].GetNode(ctx, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader, err := NewDagReader(ctx, dnode, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mreader, err := NewDagReader(ctx, mnode, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outbuf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	moutbuf, err := ioutil.ReadAll(mreader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = testu.ArrComp(inbuf, outbuf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = testu.ArrComp(inputMdata, moutbuf)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func readByte(t testing.TB, reader DagReader) byte {
 	out := make([]byte, 1)
 	c, err := reader.Read(out)

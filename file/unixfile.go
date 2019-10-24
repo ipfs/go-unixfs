@@ -3,7 +3,6 @@ package unixfile
 import (
 	"context"
 	"errors"
-
 	ft "github.com/TRON-US/go-unixfs"
 	uio "github.com/TRON-US/go-unixfs/io"
 
@@ -78,7 +77,7 @@ func (it *ufsIterator) Next() bool {
 	}
 
 	it.curName = l.Name
-	it.curFile, it.err = NewUnixfsFile(it.ctx, it.dserv, nd)
+	it.curFile, it.err = NewUnixfsFile(it.ctx, it.dserv, nd, false)
 	return it.err == nil
 }
 
@@ -150,7 +149,7 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 	}, nil
 }
 
-func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (files.Node, error) {
+func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, meta bool) (files.Node, error) {
 	switch dn := nd.(type) {
 	case *dag.ProtoNode:
 		fsn, err := ft.FSNodeFromBytes(dn.Data())
@@ -169,6 +168,23 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 		return nil, errors.New("unknown node type")
 	}
 
+	// Skip token metadata if the given 'metadata' is false. I.e.,
+	// check if the given 'p' represents a dummy root of a DAG with token metadata.
+	// If yes, get the root node of the user data that is the second child
+	// of the the dummy root. Then set this child node to 'nd'.
+	// Note that a new UnixFS type to indicate existence of metadata will be faster but
+	// a new type causes many changes.
+	if !meta {
+		newNode, err := skipMetadataIfExists(nd, dserv)
+		if err != nil {
+			return nil, err
+		}
+		if newNode == nil {
+			return nil, nil
+		}
+		nd = newNode
+	}
+
 	dr, err := uio.NewDagReader(ctx, nd, dserv)
 	if err != nil {
 		return nil, err
@@ -177,6 +193,38 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 	return &ufsFile{
 		DagReader: dr,
 	}, nil
+}
+
+// Skips metadata if exists from the DAG topped by the given 'nd'.
+// Case #1: if 'nd' is dummy root with metadata root node and user data root node being children
+//    return the second child node that is the root of user data sub-DAG.
+// Case #2: if 'nd' is metadata, return none.
+// Case #3: if 'nd' is user data, return 'nd'.
+func skipMetadataIfExists(nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
+	n := nd.(*dag.ProtoNode)
+
+	fsType, err := ft.GetFSType(n)
+	if err != nil {
+		return nil, err
+	}
+
+	if ft.TTokenMeta == fsType {
+		return nil, ft.ErrMetadataAccessDenied
+	}
+
+	// Return user data and metadata if first child is of type TTokenMeta.
+	if nd.Links() != nil && len(nd.Links()) >= 2 {
+		childen, err := ft.GetChildrenForDagWithMeta(nd, ds)
+		if err != nil {
+			return nil, err
+		}
+		if childen == nil {
+			return nd, nil
+		}
+		return childen[1], nil
+	}
+
+	return nd, nil
 }
 
 var _ files.Directory = &ufsDirectory{}

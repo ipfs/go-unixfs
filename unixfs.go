@@ -37,6 +37,9 @@ const (
 var (
 	ErrMalformedFileFormat = errors.New("malformed data in file format")
 	ErrUnrecognizedType    = errors.New("unrecognized node type")
+	ErrNotMetadataRoot     = errors.New("expected token metadata protobuf dag node")
+	ErrUnexpectedLinks     = errors.New("expected more than two links under the given dag node")
+	ErrMetadataAccessDenied = errors.New("Token metadata can not be accessed by default. Use --meta option.")
 )
 
 // FromBytes unmarshals a byte slice as protobuf Data.
@@ -435,16 +438,57 @@ func GetMetaSubdagRoot(n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
 		}
 		// Make sure first child is of TTokenMeta.
 		// If not, return nil.
-		// If not, return nil.
-		fsN, err := FSNodeFromBytes(childNode.Data())
+		fsType, err := GetFSType(childNode)
 		if err != nil {
 			return nil, err
 		}
-		if TTokenMeta != fsN.Type() {
-			return nil, fmt.Errorf("expected token metadata protobuf dag node")
+		if TTokenMeta != fsType {
+			return nil, ErrNotMetadataRoot
 		}
 		return childNode, nil
 	}
 
-	return nil, fmt.Errorf("expected more than two links under the given dag node")
+	return nil, ErrUnexpectedLinks
+}
+
+// Return ipld.Node slice of size 2
+// if the given 'nd' is top of the DAG with token metadata.
+// Return nil, nil if 'nb' is no such node and there is no error.
+func GetChildrenForDagWithMeta(nd ipld.Node, ds ipld.DAGService) ([]ipld.Node, error) {
+	var nodes = make([]ipld.Node, 2)
+	for i := 0; i < 2; i++ {
+		lnk := nd.Links()[i]
+		c := lnk.Cid
+		child, err := ds.Get(context.Background(), c)
+		if err != nil {
+			return nil, err
+		}
+		childNode, ok := child.(*dag.ProtoNode)
+		if !ok {
+			return nil, err
+		}
+		if i == 0 {
+			// Make sure first child is of TTokenMeta.
+			// If not, return nil.
+			fsType, err := GetFSType(childNode)
+			if err != nil {
+				return nil, err
+			}
+			if TTokenMeta != fsType {
+				return nil, nil
+			}
+		}
+		nodes[i] = child
+	}
+
+	return nodes, nil
+}
+
+func GetFSType(n *dag.ProtoNode) (pb.Data_DataType, error) {
+	d, err := FSNodeFromBytes(n.Data())
+	if err != nil {
+		return 0, err
+	}
+
+	return d.Type(), nil
 }

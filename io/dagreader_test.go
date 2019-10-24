@@ -248,7 +248,7 @@ func TestMetadataRead(t *testing.T) {
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	mnode, err := unixfs.GetMetaSubdagRoot(node, dserv)
+	mnode, err := unixfs.GetMetaSubdagRoot(ctx, node, dserv)
 	if err != nil {
 		t.Fatal(err)
 	}

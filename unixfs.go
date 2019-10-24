@@ -4,6 +4,7 @@
 package unixfs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -411,4 +412,39 @@ func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 	}
 
 	return fsNode, nil
+}
+
+// Returns metadata subDag root if the given 'nd' is the dummy
+// root of a DAG with metadata subDag.
+func GetMetaSubdagRoot(n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
+	nd, ok := n.(*dag.ProtoNode)
+	if !ok {
+		return nil, dag.ErrNotProtobuf
+	}
+
+	if nd.Links() != nil && len(nd.Links()) >= 2 {
+		link := nd.Links()[0]
+		c := link.Cid
+		child, err := serv.Get(context.Background(), c)
+		if err != nil {
+			return nil, err
+		}
+		childNode, ok := child.(*dag.ProtoNode)
+		if !ok {
+			return nil, err
+		}
+		// Make sure first child is of TTokenMeta.
+		// If not, return nil.
+		// If not, return nil.
+		fsN, err := FSNodeFromBytes(childNode.Data())
+		if err != nil {
+			return nil, err
+		}
+		if TTokenMeta != fsN.Type() {
+			return nil, fmt.Errorf("expected token metadata protobuf dag node")
+		}
+		return childNode, nil
+	}
+
+	return nil, fmt.Errorf("expected more than two links under the given dag node")
 }

@@ -47,6 +47,7 @@ type NodeOpts struct {
 	rsNumParity        uint64
 	metadata           []byte
 	chunkSize          uint64
+	Balanced           bool
 }
 
 // Some shorthands for NodeOpts.
@@ -56,6 +57,10 @@ var (
 	UseCidV1          = NodeOpts{Prefix: mdag.V1CidPrefix(), RawLeavesUsed: true}
 	UseBlake2b256     NodeOpts
 )
+
+func UseBalancedWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, metadata: mdata, chunkSize: chkSize}
+}
 
 func UseReedSolomon(numData, numParity uint64, mdata []byte, chkSize uint64) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), ReedSolomonEnabled: true,
@@ -112,7 +117,19 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, err := trickle.Layout(db)
+	var node ipld.Node
+	if opts.Balanced {
+		if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+			err := balanced.BuildMetadataDag(db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db.SetMetaDagBuilt(true)
+		}
+		node, err = balanced.Layout(db)
+	} else {
+		node, err = trickle.Layout(db)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

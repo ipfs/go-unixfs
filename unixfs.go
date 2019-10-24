@@ -35,10 +35,10 @@ const (
 
 // Common errors
 var (
-	ErrMalformedFileFormat = errors.New("malformed data in file format")
-	ErrUnrecognizedType    = errors.New("unrecognized node type")
-	ErrNotMetadataRoot     = errors.New("expected token metadata protobuf dag node")
-	ErrUnexpectedLinks     = errors.New("expected more than two links under the given dag node")
+	ErrMalformedFileFormat  = errors.New("malformed data in file format")
+	ErrUnrecognizedType     = errors.New("unrecognized node type")
+	ErrNotMetadataRoot      = errors.New("expected token metadata protobuf dag node")
+	ErrUnexpectedLinks      = errors.New("expected more than two links under the given dag node")
 	ErrMetadataAccessDenied = errors.New("Token metadata can not be accessed by default. Use --meta option.")
 )
 
@@ -419,7 +419,7 @@ func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 
 // Returns metadata subDag root if the given 'nd' is the dummy
 // root of a DAG with metadata subDag.
-func GetMetaSubdagRoot(n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
+func GetMetaSubdagRoot(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
 	nd, ok := n.(*dag.ProtoNode)
 	if !ok {
 		return nil, dag.ErrNotProtobuf
@@ -454,7 +454,7 @@ func GetMetaSubdagRoot(n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
 // Return ipld.Node slice of size 2
 // if the given 'nd' is top of the DAG with token metadata.
 // Return nil, nil if 'nb' is no such node and there is no error.
-func GetChildrenForDagWithMeta(nd ipld.Node, ds ipld.DAGService) ([]ipld.Node, error) {
+func GetChildrenForDagWithMeta(ctx context.Context, nd ipld.Node, ds ipld.DAGService) ([]ipld.Node, error) {
 	var nodes = make([]ipld.Node, 2)
 	for i := 0; i < 2; i++ {
 		lnk := nd.Links()[i]

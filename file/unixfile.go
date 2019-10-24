@@ -150,6 +150,7 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 }
 
 func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, meta bool) (files.Node, error) {
+	rawNode := false
 	switch dn := nd.(type) {
 	case *dag.ProtoNode:
 		fsn, err := ft.FSNodeFromBytes(dn.Data())
@@ -164,6 +165,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 		}
 
 	case *dag.RawNode:
+		rawNode = true
 	default:
 		return nil, errors.New("unknown node type")
 	}
@@ -174,8 +176,8 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 	// of the the dummy root. Then set this child node to 'nd'.
 	// Note that a new UnixFS type to indicate existence of metadata will be faster but
 	// a new type causes many changes.
-	if !meta {
-		newNode, err := skipMetadataIfExists(nd, dserv)
+	if !meta && !rawNode {
+		newNode, err := skipMetadataIfExists(ctx, nd, dserv)
 		if err != nil {
 			return nil, err
 		}
@@ -200,7 +202,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 //    return the second child node that is the root of user data sub-DAG.
 // Case #2: if 'nd' is metadata, return none.
 // Case #3: if 'nd' is user data, return 'nd'.
-func skipMetadataIfExists(nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
+func skipMetadataIfExists(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
 	n := nd.(*dag.ProtoNode)
 
 	fsType, err := ft.GetFSType(n)
@@ -214,7 +216,7 @@ func skipMetadataIfExists(nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
 
 	// Return user data and metadata if first child is of type TTokenMeta.
 	if nd.Links() != nil && len(nd.Links()) >= 2 {
-		childen, err := ft.GetChildrenForDagWithMeta(nd, ds)
+		childen, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
 		if err != nil {
 			return nil, err
 		}

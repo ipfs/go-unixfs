@@ -43,11 +43,12 @@ type NodeOpts struct {
 	RawLeavesUsed bool
 	// Enables reed solomon splitter
 	ReedSolomonEnabled bool
-	rsNumData          uint64
-	rsNumParity        uint64
-	metadata           []byte
-	chunkSize          uint64
-	Balanced           bool
+	// Enables balanced DAG to be used than trickle.
+	Balanced    bool
+	rsNumData   uint64
+	rsNumParity uint64
+	metadata    []byte
+	chunkSize   uint64
 }
 
 // Some shorthands for NodeOpts.

@@ -8,20 +8,15 @@ import (
 	testu "github.com/TRON-US/go-unixfs/test"
 )
 
-const (
-	testRsDefaultNumData   = 10
-	testRsDefaultNumParity = 20
-)
-
 func TestReedSolomonRead(t *testing.T) {
 	dserv := testu.GetDAGServ()
 	inbuf, node := testu.GetRandomNode(t, dserv, 1024,
-		testu.UseReedSolomon(testRsDefaultNumData, testRsDefaultNumParity, nil, 0))
+		testu.UseReedSolomon(testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, nil, 0))
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
 	reader, err := NewReedSolomonDagReader(ctx, node, dserv,
-		testRsDefaultNumData, testRsDefaultNumParity, uint64(len(inbuf)))
+		testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, uint64(len(inbuf)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +37,7 @@ func TestReedSolomonWithMetadataRead(t *testing.T) {
 	dserv := testu.GetDAGServ()
 
 	inbuf, node := testu.GetRandomNode(t, dserv, 1024,
-		testu.UseReedSolomon(testRsDefaultNumData, testRsDefaultNumParity, inputMdata, 512))
+		testu.UseReedSolomon(testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, inputMdata, 512))
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
@@ -55,7 +50,7 @@ func TestReedSolomonWithMetadataRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader, err := NewReedSolomonDagReader(ctx, rsnode, dserv,
-		testRsDefaultNumData, testRsDefaultNumParity, uint64(len(inbuf)))
+		testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, uint64(len(inbuf)))
 	if err != nil {
 		t.Fatal(err)
 	}

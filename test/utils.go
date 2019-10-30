@@ -59,6 +59,11 @@ var (
 	UseBlake2b256     NodeOpts
 )
 
+const (
+	TestRsDefaultNumData   = 10
+	TestRsDefaultNumParity = 20
+)
+
 func UseBalancedWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, metadata: mdata, chunkSize: chkSize}
 }

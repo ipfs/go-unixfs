@@ -2,6 +2,7 @@ package unixfile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	ft "github.com/TRON-US/go-unixfs"
@@ -238,21 +239,21 @@ func skipMetadataIfExists(ctx context.Context, nd ipld.Node, ds ipld.DAGService)
 
 	// Return user data and metadata if first child is of type TTokenMeta.
 	if nd.Links() != nil && len(nd.Links()) >= 2 {
-		childen, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
+		children, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
 		if err != nil {
 			return nil, nil, err
 		}
-		if childen == nil {
+		if children == nil {
 			return nd, nil, nil
 		}
 		metaNode, err := ft.FSNodeFromBytes(children[0].(*dag.ProtoNode).Data())
 		if err != nil {
 			return nil, nil, err
 		}
-		return childen[1], metaNode.Data(), nil
+		return children[1], metaNode.Data(), nil
 	}
 
-	return nd, nil
+	return nd, nil, nil
 }
 
 var _ files.Directory = &ufsDirectory{}

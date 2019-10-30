@@ -87,10 +87,6 @@ func TestUnixFsFileReedSolomonRead(t *testing.T) {
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	// Pre-compute reed solomon metadata
-	//rsMeta := []byte(fmt.Sprintf(`{"NumData":%d,"NumParity":%d,"FileSize":%d}`,
-	//testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, uint64(len(inbuf))))
-
 	// Read but do not display meta
 	n, err := NewUnixfsFile(ctx, dserv, node, false)
 	if err != nil {

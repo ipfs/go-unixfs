@@ -199,7 +199,8 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 			return nil, err
 		}
 		if rsMeta.NumData > 0 && rsMeta.NumParity > 0 && rsMeta.FileSize > 0 {
-			dr, err = uio.NewReedSolomonDagReader(ctx, nd, dserv,
+			// Always read from the actual dag root for reed solomon
+			dr, err = uio.NewReedSolomonDagReader(ctx, newNode, dserv,
 				rsMeta.NumData, rsMeta.NumParity, rsMeta.FileSize)
 			if err != nil {
 				return nil, err

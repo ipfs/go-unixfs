@@ -3,9 +3,11 @@ package unixfile
 import (
 	"context"
 	"errors"
+
 	ft "github.com/TRON-US/go-unixfs"
 	uio "github.com/TRON-US/go-unixfs/io"
 
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	files "github.com/TRON-US/go-btfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
@@ -176,20 +178,39 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 	// of the the dummy root. Then set this child node to 'nd'.
 	// Note that a new UnixFS type to indicate existence of metadata will be faster but
 	// a new type causes many changes.
+	newNode, metaBytes, err := skipMetadataIfExists(ctx, nd, dserv)
+	if err != nil {
+		return nil, err
+	}
 	if !meta && !rawNode {
-		newNode, err := skipMetadataIfExists(ctx, nd, dserv)
-		if err != nil {
-			return nil, err
-		}
 		if newNode == nil {
 			return nil, nil
 		}
 		nd = newNode
 	}
 
-	dr, err := uio.NewDagReader(ctx, nd, dserv)
-	if err != nil {
-		return nil, err
+	var dr uio.DagReader
+	// Select DagReader based on metadata information
+	if metaBytes != nil {
+		var rsMeta chunker.RsMetaMap
+		err = json.Unmarshal(metaBytes, &rsMeta)
+		if err != nil {
+			return nil, err
+		}
+		if rsMeta.NumData > 0 && rsMeta.NumParity > 0 && rsMeta.FileSize > 0 {
+			dr, err = uio.NewReedSolomonDagReader(ctx, nd, dserv,
+				rsMeta.NumData, rsMeta.NumParity, rsMeta.FileSize)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	// Either metadata does not exist, or is not valid, we use the normal dagreader
+	if dr == nil {
+		dr, err = uio.NewDagReader(ctx, nd, dserv)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &ufsFile{
@@ -197,33 +218,38 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 	}, nil
 }
 
-// Skips metadata if exists from the DAG topped by the given 'nd'.
+// skipMetadataIfExists skips metadata if exists from the DAG topped by the given 'nd'.
+// Also returns an unmarshalled raw form of metadata to use for caller.
 // Case #1: if 'nd' is dummy root with metadata root node and user data root node being children
 //    return the second child node that is the root of user data sub-DAG.
 // Case #2: if 'nd' is metadata, return none.
 // Case #3: if 'nd' is user data, return 'nd'.
-func skipMetadataIfExists(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
+func skipMetadataIfExists(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, []byte, error) {
 	n := nd.(*dag.ProtoNode)
 
 	fsType, err := ft.GetFSType(n)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if ft.TTokenMeta == fsType {
-		return nil, ft.ErrMetadataAccessDenied
+		return nil, nil, ft.ErrMetadataAccessDenied
 	}
 
 	// Return user data and metadata if first child is of type TTokenMeta.
 	if nd.Links() != nil && len(nd.Links()) >= 2 {
 		childen, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if childen == nil {
-			return nd, nil
+			return nd, nil, nil
 		}
-		return childen[1], nil
+		metaNode, err := ft.FSNodeFromBytes(children[0].(*dag.ProtoNode).Data())
+		if err != nil {
+			return nil, nil, err
+		}
+		return childen[1], metaNode.Data(), nil
 	}
 
 	return nd, nil

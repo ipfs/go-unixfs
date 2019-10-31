@@ -64,7 +64,7 @@ func TestReedSolomonWithMetadataRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mreader, err := NewDagReader(context.Background(), mnode, dserv)
+	mreader, err := NewDagReader(ctx, mnode, dserv)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,14 +59,45 @@ var (
 	UseBlake2b256     NodeOpts
 )
 
+const (
+	TestRsDefaultNumData   = 10
+	TestRsDefaultNumParity = 20
+)
+
 func UseBalancedWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, metadata: mdata, chunkSize: chkSize}
 }
 
-func UseReedSolomon(numData, numParity uint64, mdata []byte, chkSize uint64) NodeOpts {
-	return NodeOpts{Prefix: mdag.V0CidPrefix(), ReedSolomonEnabled: true,
-		rsNumData: numData, rsNumParity: numParity, metadata: mdata,
-		chunkSize: chkSize}
+func ReedSolomonMetaBytes(numData, numParity, fileSize uint64) []byte {
+	return []byte(fmt.Sprintf(`{"NumData":%d,"NumParity":%d,"FileSize":%d}`,
+		numData, numParity, fileSize))
+}
+
+func ExtendMetaBytes(existing []byte, extended []byte) []byte {
+	if existing != nil {
+		// Splice two meta json objects
+		if extended != nil {
+			return append(append(existing[:len(existing)-1], ','), extended[1:]...)
+		} else {
+			return existing
+		}
+	} else {
+		return extended
+	}
+}
+
+func UseReedSolomon(numData, numParity, fileSize uint64, mdata []byte, chkSize uint64) (NodeOpts, []byte) {
+	// Reed Solomon have intrinsic metadata, so must merge them
+	rsMeta := ReedSolomonMetaBytes(numData, numParity, fileSize)
+	metaBytes := ExtendMetaBytes(rsMeta, mdata)
+	return NodeOpts{
+		Prefix:             mdag.V0CidPrefix(),
+		ReedSolomonEnabled: true,
+		rsNumData:          numData,
+		rsNumParity:        numParity,
+		metadata:           metaBytes,
+		chunkSize:          chkSize,
+	}, rsMeta
 }
 
 func init() {

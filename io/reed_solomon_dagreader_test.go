@@ -8,20 +8,22 @@ import (
 	testu "github.com/TRON-US/go-unixfs/test"
 )
 
-const (
-	testRsDefaultNumData   = 10
-	testRsDefaultNumParity = 20
-)
-
 func TestReedSolomonRead(t *testing.T) {
 	dserv := testu.GetDAGServ()
-	inbuf, node := testu.GetRandomNode(t, dserv, 1024,
-		testu.UseReedSolomon(testRsDefaultNumData, testRsDefaultNumParity, nil, 0))
+
+	rsOpts, _ := testu.UseReedSolomon(testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity,
+		1024, nil, 512)
+	inbuf, node := testu.GetRandomNode(t, dserv, 1024, rsOpts)
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	reader, err := NewReedSolomonDagReader(ctx, node, dserv,
-		testRsDefaultNumData, testRsDefaultNumParity, uint64(len(inbuf)))
+	// Skip metadata, pass the reed solomon root node
+	rsnode, err := node.Links()[1].GetNode(ctx, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := NewReedSolomonDagReader(ctx, rsnode, dserv,
+		testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, uint64(len(inbuf)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,11 +40,13 @@ func TestReedSolomonRead(t *testing.T) {
 }
 
 func TestReedSolomonWithMetadataRead(t *testing.T) {
+	// This is extra metadata, in addition to reed solomon's fixed metadata
 	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
 	dserv := testu.GetDAGServ()
 
-	inbuf, node := testu.GetRandomNode(t, dserv, 1024,
-		testu.UseReedSolomon(testRsDefaultNumData, testRsDefaultNumParity, inputMdata, 512))
+	rsOpts, rsMeta := testu.UseReedSolomon(testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity,
+		1024, inputMdata, 512)
+	inbuf, node := testu.GetRandomNode(t, dserv, 1024, rsOpts)
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
@@ -55,12 +59,12 @@ func TestReedSolomonWithMetadataRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader, err := NewReedSolomonDagReader(ctx, rsnode, dserv,
-		testRsDefaultNumData, testRsDefaultNumParity, uint64(len(inbuf)))
+		testu.TestRsDefaultNumData, testu.TestRsDefaultNumParity, uint64(len(inbuf)))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	mreader, err := NewDagReader(context.Background(), mnode, dserv)
+	mreader, err := NewDagReader(ctx, mnode, dserv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,8 @@ func TestReedSolomonWithMetadataRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = testu.ArrComp(inputMdata, moutbuf)
+
+	err = testu.ArrComp(testu.ExtendMetaBytes(rsMeta, inputMdata), moutbuf)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,10 +2,8 @@ github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7/go.mod h1:bOv
 github.com/Kubuxu/go-os-helper v0.0.1/go.mod h1:N8B+I7vPCT80IcP58r50u4+gEEcsZETFUpAzWW2ep1Y=
 github.com/Stebalien/go-bitfield v0.0.1 h1:X3kbSSPUaJK60wV2hjOPZwmpljr6VGCqdq4cBLhbQBo=
 github.com/Stebalien/go-bitfield v0.0.1/go.mod h1:GNjFpasyUVkHMsfEOk8EFLJ9syQ6SI+XWrX9Wf2XH0s=
-github.com/TRON-US/go-btfs-chunker v0.2.0 h1:dp80UzRmUFzDDDt4nqo2STGVh5I4jDQJRYJYtRGulSo=
-github.com/TRON-US/go-btfs-chunker v0.2.0/go.mod h1:6wFL7KgEumsn7R7IGFZZhOGIHxA/YkA4RdfR553M3Fk=
-github.com/TRON-US/go-btfs-chunker v0.2.2 h1:aiLDsiM3X2Yy2jVo3EQYYEVkw57SThOUPTs0Ja5yPeA=
-github.com/TRON-US/go-btfs-chunker v0.2.2/go.mod h1:Wj0oyybAWtu5lpcAc90QQ3bhJ14JRXD50PqxP25wmnI=
+github.com/TRON-US/go-btfs-chunker v0.2.3 h1:ky/HsQY8UU+Mas3qXptwO9x3Pd2HWDDm+ycpS+NI9Js=
+github.com/TRON-US/go-btfs-chunker v0.2.3/go.mod h1:Wj0oyybAWtu5lpcAc90QQ3bhJ14JRXD50PqxP25wmnI=
 github.com/TRON-US/go-btfs-files v0.1.1 h1:GuDIiWDM66bfhfxJy8+dBL4Cfbcp3iBp7pgHpKKCw8k=
 github.com/TRON-US/go-btfs-files v0.1.1/go.mod h1:tD2vOKLcLCDNMn9rrA27n2VbNpHdKewGzEguIFY+EJ0=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
@@ -100,8 +98,6 @@ github.com/ipfs/go-ipfs-exchange-interface v0.0.1 h1:LJXIo9W7CAmugqI+uofioIpRb6r
 github.com/ipfs/go-ipfs-exchange-interface v0.0.1/go.mod h1:c8MwfHjtQjPoDyiy9cFquVtVHkO9b9Ob3FG91qJnWCM=
 github.com/ipfs/go-ipfs-exchange-offline v0.0.1 h1:P56jYKZF7lDDOLx5SotVh5KFxoY6C81I1NSHW1FxGew=
 github.com/ipfs/go-ipfs-exchange-offline v0.0.1/go.mod h1:WhHSFCVYX36H/anEKQboAzpUws3x7UeEGkzQc3iNkM0=
-github.com/ipfs/go-ipfs-files v0.0.3 h1:ME+QnC3uOyla1ciRPezDW0ynQYK2ikOh9OCKAEg4uUA=
-github.com/ipfs/go-ipfs-files v0.0.3/go.mod h1:INEFm0LL2LWXBhNJ2PMIIb2w45hpXgPjNoE7yA8Y1d4=
 github.com/ipfs/go-ipfs-posinfo v0.0.1 h1:Esoxj+1JgSjX0+ylc0hUmJCOv6V2vFoZiETLR6OtpRs=
 github.com/ipfs/go-ipfs-posinfo v0.0.1/go.mod h1:SwyeVP+jCwiDu0C313l/8jg6ZxM0qqtlt2a0vILTc1A=
 github.com/ipfs/go-ipfs-pq v0.0.1 h1:zgUotX8dcAB/w/HidJh1zzc1yFq6Vm8J7T2F4itj/RU=

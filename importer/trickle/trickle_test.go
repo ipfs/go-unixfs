@@ -668,8 +668,8 @@ func TestAppendSingleBytesToEmpty(t *testing.T) {
 
 func buildMetaTestDag(ds ipld.DAGService, maxLinks int, spl chunker.Splitter, metadata []byte, chunksize int64) (*merkledag.ProtoNode, error) {
 	dbp := h.DagBuilderParams{
-		Dagserv:   ds,
-		Maxlinks:  maxLinks,
+		Dagserv:       ds,
+		Maxlinks:      maxLinks,
 		TokenMetadata: metadata,
 		ChunkSize:     uint64(chunksize),
 	}
@@ -746,10 +746,10 @@ func TestMetaDataThreeLevelDagConsistency(t *testing.T) {
 
 func buildTestDagWithMetadata(ds ipld.DAGService, maxLinks int, dSpl chunker.Splitter, meta []byte, chunkSz int64) (*merkledag.ProtoNode, error) {
 	dbp := &h.DagBuilderParams{
-		Maxlinks:          maxLinks,
-		Dagserv:           ds,
-		TokenMetadata:     meta,
-		ChunkSize:         uint64(chunkSz),
+		Maxlinks:      maxLinks,
+		Dagserv:       ds,
+		TokenMetadata: meta,
+		ChunkSize:     uint64(chunkSz),
 	}
 
 	db, err := dbp.New(dSpl)

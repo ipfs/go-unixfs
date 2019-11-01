@@ -53,7 +53,7 @@ func verifyNode(t *testing.T, orig []byte, dm *DagModifier, opts testu.NodeOpts,
 		LayerRepeat: 4,
 		Prefix:      &opts.Prefix,
 		RawLeaves:   opts.RawLeavesUsed,
-		Metadata:   meta,
+		Metadata:    meta,
 	})
 	if err != nil {
 		t.Fatal(err)

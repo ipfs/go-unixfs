@@ -77,11 +77,13 @@ func BuildMetadataDag(db *h.DagBuilderHelper) error {
 // fillTrickleRec creates a trickle (sub-)tree with an optional maximum specified depth
 // in the case maxDepth is greater than zero, or with unlimited depth otherwise
 // (where the DAG builder will signal the end of data to end the function).
-func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDepth int, fsType pb.Data_DataType ) (filledNode ipld.Node, nodeFileSize uint64, err error) {
+func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDepth int, fsType pb.Data_DataType) (filledNode ipld.Node, nodeFileSize uint64, err error) {
 	var nextFsType pb.Data_DataType
 	switch fsType {
-	case ft.TFile: nextFsType = ft.TRaw
-	case ft.TTokenMeta: nextFsType = ft.TTokenMeta
+	case ft.TFile:
+		nextFsType = ft.TRaw
+	case ft.TTokenMeta:
+		nextFsType = ft.TTokenMeta
 	default:
 		return nil, 0, h.ErrUnexpectedNodeType
 	}
@@ -90,7 +92,6 @@ func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDe
 	if err := db.FillNodeLayer(node, nextFsType); err != nil {
 		return nil, 0, err
 	}
-
 
 	// For each depth in [1, `maxDepth`) (or without limit if `maxDepth` is -1,
 	// initial call from `Layout`) add `depthRepeat` sub-graphs of that depth.

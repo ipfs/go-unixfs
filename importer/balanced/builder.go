@@ -370,4 +370,3 @@ func fillNodeRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, depth in
 
 	return filledNode, nodeFileSize, nil
 }
-

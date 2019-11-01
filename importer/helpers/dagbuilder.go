@@ -33,7 +33,7 @@ type DagBuilderHelperInterface interface {
 	Done() bool
 	Add(ipld.Node) error
 	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
-    FillNodeLayer(*FSNodeOverDag, pb.Data_DataType) error
+	FillNodeLayer(*FSNodeOverDag, pb.Data_DataType) error
 	AttachMetadataDag(ipld.Node, uint64) (ipld.Node, error)
 }
 

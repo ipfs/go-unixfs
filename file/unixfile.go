@@ -2,10 +2,13 @@ package unixfile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+
 	ft "github.com/TRON-US/go-unixfs"
 	uio "github.com/TRON-US/go-unixfs/io"
 
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	files "github.com/TRON-US/go-btfs-files"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
@@ -149,6 +152,9 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 	}, nil
 }
 
+// NewUnixFsFile returns a DagReader for the 'nd' root node.
+// If meta = true, only return a valid metadata node if it exists. If not, return error.
+// If meta = false, return only the data contents.
 func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, meta bool) (files.Node, error) {
 	rawNode := false
 	switch dn := nd.(type) {
@@ -170,26 +176,59 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 		return nil, errors.New("unknown node type")
 	}
 
-	// Skip token metadata if the given 'metadata' is false. I.e.,
-	// check if the given 'p' represents a dummy root of a DAG with token metadata.
-	// If yes, get the root node of the user data that is the second child
-	// of the the dummy root. Then set this child node to 'nd'.
-	// Note that a new UnixFS type to indicate existence of metadata will be faster but
-	// a new type causes many changes.
-	if !meta && !rawNode {
-		newNode, err := skipMetadataIfExists(ctx, nd, dserv)
+	var dr uio.DagReader
+	// Keep 'nd' if raw node
+	if !rawNode {
+		// Split metadata node and data node if available
+		dataNode, metaNode, err := checkAndSplitMetadata(ctx, nd, dserv)
 		if err != nil {
 			return nil, err
 		}
-		if newNode == nil {
-			return nil, nil
+
+		// Return just metadata if available
+		if meta {
+			if metaNode == nil {
+				return nil, errors.New("no metadata is available")
+			}
+			nd = metaNode
+		} else {
+			// Select DagReader based on metadata information
+			if metaNode != nil {
+				mdr, err := uio.NewDagReader(ctx, metaNode, dserv)
+				if err != nil {
+					return nil, err
+				}
+				// Read all metadata
+				buf := make([]byte, mdr.Size())
+				_, err = mdr.CtxReadFull(ctx, buf)
+				if err != nil {
+					return nil, err
+				}
+				var rsMeta chunker.RsMetaMap
+				err = json.Unmarshal(buf, &rsMeta)
+				if err != nil {
+					return nil, err
+				}
+				if rsMeta.NumData > 0 && rsMeta.NumParity > 0 && rsMeta.FileSize > 0 {
+					// Always read from the actual dag root for reed solomon
+					dr, err = uio.NewReedSolomonDagReader(ctx, dataNode, dserv,
+						rsMeta.NumData, rsMeta.NumParity, rsMeta.FileSize)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+			nd = dataNode
 		}
-		nd = newNode
 	}
 
-	dr, err := uio.NewDagReader(ctx, nd, dserv)
-	if err != nil {
-		return nil, err
+	// Use default dag reader if not a special type reader
+	if dr == nil {
+		var err error
+		dr, err = uio.NewDagReader(ctx, nd, dserv)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &ufsFile{
@@ -197,36 +236,37 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 	}, nil
 }
 
-// Skips metadata if exists from the DAG topped by the given 'nd'.
+// checkAndSplitMetadata returns both data root node and metadata root node if exists from
+// the DAG topped by the given 'nd'.
 // Case #1: if 'nd' is dummy root with metadata root node and user data root node being children
 //    return the second child node that is the root of user data sub-DAG.
 // Case #2: if 'nd' is metadata, return none.
 // Case #3: if 'nd' is user data, return 'nd'.
-func skipMetadataIfExists(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, error) {
+func checkAndSplitMetadata(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, ipld.Node, error) {
 	n := nd.(*dag.ProtoNode)
 
 	fsType, err := ft.GetFSType(n)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if ft.TTokenMeta == fsType {
-		return nil, ft.ErrMetadataAccessDenied
+		return nil, nil, ft.ErrMetadataAccessDenied
 	}
 
 	// Return user data and metadata if first child is of type TTokenMeta.
 	if nd.Links() != nil && len(nd.Links()) >= 2 {
-		childen, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
+		children, err := ft.GetChildrenForDagWithMeta(ctx, nd, ds)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if childen == nil {
-			return nd, nil
+		if children == nil {
+			return nd, nil, nil
 		}
-		return childen[1], nil
+		return children[1], children[0], nil
 	}
 
-	return nd, nil
+	return nd, nil, nil
 }
 
 var _ files.Directory = &ufsDirectory{}

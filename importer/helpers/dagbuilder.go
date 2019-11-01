@@ -33,6 +33,8 @@ type DagBuilderHelperInterface interface {
 	Done() bool
 	Add(ipld.Node) error
 	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
+    FillNodeLayer(*FSNodeOverDag, pb.Data_DataType) error
+	AttachMetadataDag(ipld.Node, uint64) (ipld.Node, error)
 }
 
 // dagBuilderHelper contains the shared fields among various different helpers
@@ -269,11 +271,13 @@ func (db *DagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType
 // it is full in this layer or no more data.
 // NOTE: This function creates raw data nodes so it only works
 // for the `trickle.Layout`.
-func (db *DagBuilderHelper) FillNodeLayer(node *FSNodeOverDag) error {
-
+func (db *DagBuilderHelper) FillNodeLayer(node *FSNodeOverDag, fsNodeType pb.Data_DataType) error {
+	if fsNodeType != ft.TRaw && fsNodeType != ft.TTokenMeta {
+		return errors.New("FillNodeLayer: expected raw block or metadata block")
+	}
 	// while we have room AND we're not done
 	for node.NumChildren() < db.maxlinks && !db.Done() {
-		child, childFileSize, err := db.NewLeafDataNode(ft.TRaw)
+		child, childFileSize, err := db.NewLeafDataNode(fsNodeType)
 		if err != nil {
 			return err
 		}
@@ -398,6 +402,52 @@ func (db *DagBuilderHelper) NewFSNodeOverDag(fsNodeType pb.Data_DataType) *FSNod
 // NewFSNFromDag reconstructs a FSNodeOverDag node from a given dag node
 func (db *DagBuilderHelper) NewFSNFromDag(nd *dag.ProtoNode) (*FSNodeOverDag, error) {
 	return NewFSNFromDag(nd)
+}
+
+func (db *DagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64) (ipld.Node, error) {
+	// Create a 'newRoot'.
+	newRoot := db.NewFSNodeOverDag(ft.TFile)
+
+	// Add metadata DAG as first child of 'newRoot'.
+	err := db.addMetadataChild(newRoot, db.GetMetaDb().GetMetaDagRoot())
+	if err != nil {
+		return nil, err
+	}
+
+	// Add the data DAG 'root' to 'newRoot'.
+	err = newRoot.AddChild(root, fileSize, db)
+	if err != nil {
+		return nil, err
+	}
+
+	// Commit 'newRoot' to make 'root'
+	root, err = newRoot.Commit()
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
+}
+
+// Add the metadata DAG root 'mroot' as first child of 'newRoot'.
+func (db *DagBuilderHelper) addMetadataChild(newRoot *FSNodeOverDag, mroot ipld.Node) error {
+	pnode, ok := mroot.(*dag.ProtoNode)
+	if !ok {
+		return ErrUnexpectedNodeType
+	}
+
+	fsn, err := ft.FSNodeFromBytes(pnode.Data())
+	if err != nil {
+		return err
+	}
+
+	metaFileSize := fsn.FileSize()
+	err = newRoot.AddChildDag(mroot, metaFileSize, db)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NewFSNFromDag reconstructs a FSNodeOverDag node from a given dag node

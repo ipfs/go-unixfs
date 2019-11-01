@@ -19,10 +19,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	ft "github.com/TRON-US/go-unixfs"
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
-
+	pb "github.com/TRON-US/go-unixfs/pb"
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
@@ -41,22 +40,57 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		return nil, fmt.Errorf("trickle layout does not support multi-splitter chunker")
 	}
 	newRoot := db.NewFSNodeOverDag(ft.TFile)
-	root, _, err := fillTrickleRec(db, newRoot, -1)
+	root, _, err := fillTrickleRec(db, newRoot, -1, ft.TFile)
 	if err != nil {
 		return nil, err
 	}
 
+	// Add token metadata DAG, if exists, as a child to the 'newRoot'.
+	if db.IsThereMetaData() {
+		fileSize, err := root.Size()
+		if err != nil {
+			return nil, err
+		}
+		root, err = db.AttachMetadataDag(root, fileSize)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return root, db.Add(root)
+}
+
+func BuildMetadataDag(db *h.DagBuilderHelper) error {
+	mdb := db.GetMetaDb()
+	mdb.SetDb(db)
+
+	mdb.SetSpl()
+	newRoot := mdb.NewFSNodeOverDag(ft.TTokenMeta)
+	root, _, err := fillTrickleRec(mdb, newRoot, -1, ft.TTokenMeta)
+	if err != nil {
+		return err
+	}
+
+	mdb.SetMetaDagRoot(root)
+	return mdb.Add(root)
 }
 
 // fillTrickleRec creates a trickle (sub-)tree with an optional maximum specified depth
 // in the case maxDepth is greater than zero, or with unlimited depth otherwise
 // (where the DAG builder will signal the end of data to end the function).
-func fillTrickleRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, maxDepth int) (filledNode ipld.Node, nodeFileSize uint64, err error) {
+func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDepth int, fsType pb.Data_DataType ) (filledNode ipld.Node, nodeFileSize uint64, err error) {
+	var nextFsType pb.Data_DataType
+	switch fsType {
+	case ft.TFile: nextFsType = ft.TRaw
+	case ft.TTokenMeta: nextFsType = ft.TTokenMeta
+	default:
+		return nil, 0, h.ErrUnexpectedNodeType
+	}
+
 	// Always do this, even in the base case
-	if err := db.FillNodeLayer(node); err != nil {
+	if err := db.FillNodeLayer(node, nextFsType); err != nil {
 		return nil, 0, err
 	}
+
 
 	// For each depth in [1, `maxDepth`) (or without limit if `maxDepth` is -1,
 	// initial call from `Layout`) add `depthRepeat` sub-graphs of that depth.
@@ -69,7 +103,7 @@ func fillTrickleRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, maxDepth int)
 
 		for repeatIndex := 0; repeatIndex < depthRepeat && !db.Done(); repeatIndex++ {
 
-			childNode, childFileSize, err := fillTrickleRec(db, db.NewFSNodeOverDag(ft.TFile), depth)
+			childNode, childFileSize, err := fillTrickleRec(db, db.NewFSNodeOverDag(fsType), depth, fsType)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -107,7 +141,7 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 	depth, repeatNumber := trickleDepthInfo(fsn, db.Maxlinks())
 	if depth == 0 {
 		// If direct blocks not filled...
-		if err := db.FillNodeLayer(fsn); err != nil {
+		if err := db.FillNodeLayer(fsn, ft.TRaw); err != nil {
 			return nil, err
 		}
 
@@ -135,7 +169,7 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 	for i := depth; !db.Done(); i++ {
 		for j := 0; j < depthRepeat && !db.Done(); j++ {
 			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, ft.TFile)
 			if err != nil {
 				return nil, err
 			}
@@ -187,7 +221,7 @@ func appendFillLastChild(ctx context.Context, fsn *h.FSNodeOverDag, depth int, r
 	if repeatNumber != 0 {
 		for ; repeatNumber < depthRepeat && !db.Done(); repeatNumber++ {
 			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, depth)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, depth, ft.TFile)
 			if err != nil {
 				return err
 			}
@@ -211,7 +245,7 @@ func appendRec(ctx context.Context, fsn *h.FSNodeOverDag, db *h.DagBuilderHelper
 	depth, repeatNumber := trickleDepthInfo(fsn, db.Maxlinks())
 	if depth == 0 {
 		// If direct blocks not filled...
-		if err := db.FillNodeLayer(fsn); err != nil {
+		if err := db.FillNodeLayer(fsn, ft.TRaw); err != nil {
 			return nil, 0, err
 		}
 		depth++
@@ -236,7 +270,7 @@ func appendRec(ctx context.Context, fsn *h.FSNodeOverDag, db *h.DagBuilderHelper
 	for i := depth; i < maxDepth && !db.Done(); i++ {
 		for j := 0; j < depthRepeat && !db.Done(); j++ {
 			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, ft.TFile)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -285,6 +319,7 @@ type VerifyParams struct {
 	LayerRepeat int
 	Prefix      *cid.Prefix
 	RawLeaves   bool
+	Metadata    bool
 }
 
 // VerifyTrickleDagStructure checks that the given dag matches exactly the trickle dag datastructure
@@ -308,8 +343,8 @@ func verifyTDagRec(n ipld.Node, depth int, p VerifyParams) error {
 				return err
 			}
 
-			if fsn.Type() != ft.TRaw {
-				return errors.New("expected raw block")
+			if fsn.Type() != ft.TRaw && fsn.Type() != ft.TTokenMeta {
+				return errors.New("expected raw block or metadata block")
 			}
 
 			if p.RawLeaves {
@@ -356,11 +391,17 @@ func verifyTDagRec(n ipld.Node, depth int, p VerifyParams) error {
 		return err
 	}
 
-	if fsn.Type() != ft.TFile {
-		return fmt.Errorf("expected file as branch node, got: %s", fsn.Type())
+	if p.Metadata {
+		if fsn.Type() != ft.TTokenMeta {
+			return fmt.Errorf("expected token meta as branch node, got: %s", fsn.Type())
+		}
+	} else {
+		if fsn.Type() != ft.TFile {
+			return fmt.Errorf("expected file as branch node, got: %s", fsn.Type())
+		}
 	}
 
-	if len(fsn.Data()) > 0 {
+	if fsn.Type() == ft.TFile && len(fsn.Data()) > 0 {
 		return errors.New("branch node should not have data")
 	}
 

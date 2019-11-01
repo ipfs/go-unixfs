@@ -29,8 +29,12 @@ func (mdb *MetaDagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_Dat
 	return mdb.db.NewLeafNode(data, fsNodeType)
 }
 
-func (mdb *MetaDagBuilderHelper) FillNodeLayer(node *FSNodeOverDag) error {
-	return mdb.db.FillNodeLayer(node)
+func (mdb *MetaDagBuilderHelper) FillNodeLayer(node *FSNodeOverDag, fsNodeType pb.Data_DataType) error {
+	return mdb.db.FillNodeLayer(node, fsNodeType)
+}
+
+func (mdb *MetaDagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64) (ipld.Node, error) {
+	return mdb.db.AttachMetadataDag(root, fileSize)
 }
 
 // NewMetaLeafDataNode builds a metadata `node` with the meta data

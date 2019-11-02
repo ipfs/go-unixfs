@@ -17,7 +17,7 @@ import (
 	u "github.com/ipfs/go-ipfs-util"
 )
 
-func testModWrite(t *testing.T, beg, size uint64, orig []byte, dm *DagModifier, opts testu.NodeOpts) []byte {
+func testModWrite(t *testing.T, beg, size uint64, orig []byte, dm *DagModifier, opts testu.NodeOpts, meta bool) []byte {
 	newdata := make([]byte, size)
 	r := u.NewTimeSeededRand()
 	r.Read(newdata)
@@ -36,12 +36,12 @@ func testModWrite(t *testing.T, beg, size uint64, orig []byte, dm *DagModifier, 
 		t.Fatalf("Mod length not correct! %d != %d", nmod, size)
 	}
 
-	verifyNode(t, orig, dm, opts)
+	verifyNode(t, orig, dm, opts, meta)
 
 	return orig
 }
 
-func verifyNode(t *testing.T, orig []byte, dm *DagModifier, opts testu.NodeOpts) {
+func verifyNode(t *testing.T, orig []byte, dm *DagModifier, opts testu.NodeOpts, meta bool) {
 	nd, err := dm.GetNode()
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +53,7 @@ func verifyNode(t *testing.T, orig []byte, dm *DagModifier, opts testu.NodeOpts)
 		LayerRepeat: 4,
 		Prefix:      &opts.Prefix,
 		RawLeaves:   opts.RawLeavesUsed,
+		Metadata:    meta,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -103,26 +104,26 @@ func testDagModifierBasic(t *testing.T, opts testu.NodeOpts) {
 	length := uint64(60)
 
 	t.Log("Testing mod within zero block")
-	b = testModWrite(t, beg, length, b, dagmod, opts)
+	b = testModWrite(t, beg, length, b, dagmod, opts, false)
 
 	// Within bounds of existing file
 	beg = 1000
 	length = 4000
 	t.Log("Testing mod within bounds of existing multiblock file.")
-	b = testModWrite(t, beg, length, b, dagmod, opts)
+	b = testModWrite(t, beg, length, b, dagmod, opts, false)
 
 	// Extend bounds
 	beg = 49500
 	length = 4000
 
 	t.Log("Testing mod that extends file.")
-	b = testModWrite(t, beg, length, b, dagmod, opts)
+	b = testModWrite(t, beg, length, b, dagmod, opts, false)
 
 	// "Append"
 	beg = uint64(len(b))
 	length = 3000
 	t.Log("Testing pure append")
-	_ = testModWrite(t, beg, length, b, dagmod, opts)
+	_ = testModWrite(t, beg, length, b, dagmod, opts, false)
 
 	// Verify reported length
 	node, err := dagmod.GetNode()
@@ -181,7 +182,7 @@ func testMultiWrite(t *testing.T, opts testu.NodeOpts) {
 		}
 	}
 
-	verifyNode(t, data, dagmod, opts)
+	verifyNode(t, data, dagmod, opts, false)
 }
 
 func TestMultiWriteAndFlush(t *testing.T) {
@@ -219,7 +220,7 @@ func testMultiWriteAndFlush(t *testing.T, opts testu.NodeOpts) {
 		}
 	}
 
-	verifyNode(t, data, dagmod, opts)
+	verifyNode(t, data, dagmod, opts, false)
 }
 
 func TestWriteNewFile(t *testing.T) {
@@ -251,7 +252,7 @@ func testWriteNewFile(t *testing.T, opts testu.NodeOpts) {
 		t.Fatal("Wrote wrong amount")
 	}
 
-	verifyNode(t, towrite, dagmod, opts)
+	verifyNode(t, towrite, dagmod, opts, false)
 }
 
 func TestMultiWriteCoal(t *testing.T) {
@@ -287,7 +288,7 @@ func testMultiWriteCoal(t *testing.T, opts testu.NodeOpts) {
 
 	}
 
-	verifyNode(t, data, dagmod, opts)
+	verifyNode(t, data, dagmod, opts, false)
 }
 
 func TestLargeWriteChunks(t *testing.T) {
@@ -857,4 +858,94 @@ func getOffset(reader uio.DagReader) int64 {
 		panic("failed to retrieve offset: " + err.Error())
 	}
 	return offset
+}
+
+func TestTrickleMetaDagAppend(t *testing.T) {
+	t.Run("opts=ProtoBufLeaves", func(t *testing.T) { testTrickleMetaDagAppendBasic(t, testu.UseProtoBufLeaves) })
+}
+
+func testTrickleMetaDagAppendBasic(t *testing.T, opts testu.NodeOpts) {
+	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	dserv := testu.GetDAGServ()
+
+	_, node := testu.GetRandomNode(t, dserv, 64,
+		testu.UseTrickleWithMetadata(inputMdata, 32))
+	ctx, closer := context.WithCancel(context.Background())
+	defer closer()
+
+	mnode, err := unixfs.GetMetaSubdagRoot(ctx, node, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dagmod, err := NewDagModifier(ctx, mnode, dserv, testu.MetaSplitterGen((32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// "Append"
+	beg := uint64(len(inputMdata))
+	length := uint64(3000)
+	_ = testModWrite(t, beg, length, inputMdata, dagmod, opts, true)
+
+	// Verify reported length
+	node, err = dagmod.GetNode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	size, err := fileSize(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := uint64(beg + 3000)
+	if size != expected {
+		t.Fatalf("Final reported size is incorrect [%d != %d]", size, expected)
+	}
+}
+
+func TestBalancedMetaDagAppend(t *testing.T) {
+	t.Run("opts=ProtoBufLeaves", func(t *testing.T) { testBalancedMetaDagAppendBasic(t, testu.UseProtoBufLeaves) })
+}
+
+func testBalancedMetaDagAppendBasic(t *testing.T, opts testu.NodeOpts) {
+	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	dserv := testu.GetDAGServ()
+
+	_, node := testu.GetRandomNode(t, dserv, 64,
+		testu.UseBalancedWithMetadata(inputMdata, 32))
+	ctx, closer := context.WithCancel(context.Background())
+	defer closer()
+
+	mnode, err := unixfs.GetMetaSubdagRoot(ctx, node, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dagmod, err := NewDagModifier(ctx, mnode, dserv, testu.MetaSplitterGen((32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// "Append"
+	beg := uint64(len(inputMdata))
+	length := uint64(3000)
+	_ = testModWrite(t, beg, length, inputMdata, dagmod, opts, true)
+
+	// Verify reported length
+	node, err = dagmod.GetNode()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	size, err := fileSize(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := uint64(beg + 3000)
+	if size != expected {
+		t.Fatalf("Final reported size is incorrect [%d != %d]", size, expected)
+	}
 }

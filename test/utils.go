@@ -29,6 +29,12 @@ func SizeSplitterGen(size int64) chunker.SplitterGen {
 	}
 }
 
+func MetaSplitterGen(size int64) chunker.SplitterGen {
+	return func(r io.Reader) chunker.Splitter {
+		return chunker.NewMetaSplitter(r, uint64(size))
+	}
+}
+
 // GetDAGServ returns a mock DAGService.
 func GetDAGServ() ipld.DAGService {
 	return mdagmock.Mock()
@@ -66,6 +72,10 @@ const (
 
 func UseBalancedWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, metadata: mdata, chunkSize: chkSize}
+}
+
+func UseTrickleWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), metadata: mdata, chunkSize: chkSize}
 }
 
 func ReedSolomonMetaBytes(numData, numParity, fileSize uint64) []byte {
@@ -150,14 +160,18 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 		t.Fatal(err)
 	}
 	var node ipld.Node
-	if opts.Balanced {
-		if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
-			err := balanced.BuildMetadataDag(db)
-			if err != nil {
-				t.Fatal(err)
-			}
-			db.SetMetaDagBuilt(true)
+	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+		if opts.Balanced {
+			err = balanced.BuildMetadataDag(db)
+		} else {
+			err = trickle.BuildMetadataDag(db)
 		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		db.SetMetaDagBuilt(true)
+	}
+	if opts.Balanced {
 		node, err = balanced.Layout(db)
 	} else {
 		node, err = trickle.Layout(db)

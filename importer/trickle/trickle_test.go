@@ -665,3 +665,190 @@ func TestAppendSingleBytesToEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func buildMetaTestDag(ds ipld.DAGService, maxLinks int, spl chunker.Splitter, metadata []byte, chunksize int64) (*merkledag.ProtoNode, error) {
+	dbp := h.DagBuilderParams{
+		Dagserv:       ds,
+		Maxlinks:      maxLinks,
+		TokenMetadata: metadata,
+		ChunkSize:     uint64(chunksize),
+	}
+
+	db, err := dbp.New(spl)
+	if err != nil {
+		return nil, err
+	}
+
+	err = BuildMetadataDag(db)
+	if err != nil {
+		return nil, err
+	}
+
+	mdb := db.GetMetaDb()
+	nd := mdb.GetMetaDagRoot()
+
+	pbnd, ok := nd.(*merkledag.ProtoNode)
+	if !ok {
+		return nil, merkledag.ErrNotProtobuf
+	}
+
+	//return pbnd, nil
+	return pbnd, VerifyTrickleDagStructure(pbnd, VerifyParams{
+		Getter:      ds,
+		Direct:      dbp.Maxlinks,
+		LayerRepeat: depthRepeat,
+		Metadata:    true,
+	})
+}
+
+func testMetaDataConsistency(t *testing.T, maxlinks int, mdata []byte, chunksize int64) {
+	read := bytes.NewReader(mdata)
+
+	ds := mdtest.Mock()
+	nd, err := buildMetaTestDag(ds, maxlinks, chunker.NewMetaSplitter(read, uint64(chunksize)), mdata, chunksize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := uio.NewDagReader(context.Background(), nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = arrComp(out, mdata)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMetaDataBasicConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":250.5}`)
+	testMetaDataConsistency(t, h.DefaultLinksPerBlock, b, chunker.DefaultBlockSize)
+}
+
+func TestMetaDataTwoLevelDagConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testMetaDataConsistency(t, 4, b, 32)
+}
+
+func TestMetaDataThreeLevelDagConsistency(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testMetaDataConsistency(t, 4, b, 8)
+}
+
+func buildTestDagWithMetadata(ds ipld.DAGService, maxLinks int, dSpl chunker.Splitter, meta []byte, chunkSz int64) (*merkledag.ProtoNode, error) {
+	dbp := &h.DagBuilderParams{
+		Maxlinks:      maxLinks,
+		Dagserv:       ds,
+		TokenMetadata: meta,
+		ChunkSize:     uint64(chunkSz),
+	}
+
+	db, err := dbp.New(dSpl)
+	if err != nil {
+		return nil, err
+	}
+
+	// Call the drivers to create meatadata and data trickle DAGs.
+	if db.IsThereMetaData() && !db.IsMetaDagBuilt() {
+		err := BuildMetadataDag(db)
+		if err != nil {
+			return nil, err
+		}
+		db.SetMetaDagBuilt(true)
+	}
+
+	nd, err := Layout(db)
+	if err != nil {
+		return nil, err
+	}
+
+	return nd.(*merkledag.ProtoNode), nil
+}
+
+func getTestDagWithMetadata(t *testing.T, ds ipld.DAGService, dsize int64, maxlinks int, meta []byte, chksize int64) (*merkledag.ProtoNode, []byte, []byte) {
+	data := make([]byte, dsize)
+	u.NewTimeSeededRand().Read(data)
+	dr := bytes.NewReader(data)
+
+	nd, err := buildTestDagWithMetadata(ds, maxlinks, chunker.NewSizeSplitter(dr, chksize), meta, chksize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return nd, data, meta
+}
+
+func getRootsForDataAndMetadata(t *testing.T, root ipld.Node, ds ipld.DAGService) (*merkledag.ProtoNode, *merkledag.ProtoNode, error) {
+	var nodes [2]ipld.Node
+
+	if len(root.Links()) < 2 {
+		return nil, nil, h.ErrUnexpectedProgramState
+	}
+
+	for i := 0; i < 2; i++ {
+		lnk := root.Links()[i]
+		c := lnk.Cid
+		child, err := ds.Get(context.Background(), c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes[i] = child
+	}
+	return nodes[0].(*merkledag.ProtoNode), nodes[1].(*merkledag.ProtoNode), nil
+}
+
+func testUserDataWithTokenMetadataRead(t *testing.T, dsize int64, maxlinks int, mdata []byte, chksize int64) {
+	ds := mdtest.Mock()
+	nd, should, mshould := getTestDagWithMetadata(t, ds, dsize, maxlinks, mdata, chksize)
+
+	mnd, dnd, err := getRootsForDataAndMetadata(t, nd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mr, err := uio.NewDagReader(context.Background(), mnd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := uio.NewDagReader(context.Background(), dnd, ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mout, err := ioutil.ReadAll(mr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = arrComp(mout, mshould)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = arrComp(out, should)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBasicUserdataWithTokenMetadataRead(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testUserDataWithTokenMetadataRead(t, 512, 2, b, 512)
+}
+
+func TestNoUserdataWithTokenMetadataRead(t *testing.T) {
+	b := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	testUserDataWithTokenMetadataRead(t, 0, 2, b, 512)
+}

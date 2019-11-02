@@ -55,7 +55,6 @@ import (
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
 	pb "github.com/TRON-US/go-unixfs/pb"
 	ipld "github.com/ipfs/go-ipld-format"
-	dag "github.com/ipfs/go-merkledag"
 )
 
 // Layout builds a balanced DAG layout. In a balanced DAG of depth 1, leaf nodes
@@ -176,7 +175,7 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		root, err = attachMetadataDag(db, root, fileSize)
+		root, err = db.AttachMetadataDag(root, fileSize)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +195,7 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 		// This works without Filestore support (`ProcessFileStore`).
 		// TODO: Why? Is there a test case missing?
 		if addMetaDag {
-			root, err = attachMetadataDag(db, root, 0)
+			root, err = db.AttachMetadataDag(root, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -236,7 +235,7 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 
 	// Add token metadata DAG, if exists, as a child to the 'newRoot'.
 	if addMetaDag {
-		root, err = attachMetadataDag(db, root, fileSize)
+		root, err = db.AttachMetadataDag(root, fileSize)
 		if err != nil {
 			return nil, err
 		}
@@ -370,50 +369,4 @@ func fillNodeRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, depth in
 	}
 
 	return filledNode, nodeFileSize, nil
-}
-
-func attachMetadataDag(db *h.DagBuilderHelper, root ipld.Node, fileSize uint64) (ipld.Node, error) {
-	// Create a 'newRoot'.
-	newRoot := db.NewFSNodeOverDag(ft.TFile)
-
-	// Add metadata DAG as first child of 'newRoot'.
-	err := addMetadataChild(db, newRoot, db.GetMetaDb().GetMetaDagRoot())
-	if err != nil {
-		return nil, err
-	}
-
-	// Add the data DAG 'root' to 'newRoot'.
-	err = newRoot.AddChild(root, fileSize, db)
-	if err != nil {
-		return nil, err
-	}
-
-	// Commit 'newRoot' to make 'root'
-	root, err = newRoot.Commit()
-	if err != nil {
-		return nil, err
-	}
-
-	return root, nil
-}
-
-// Add the metadata DAG root 'mroot' as first child of 'newRoot'.
-func addMetadataChild(db *h.DagBuilderHelper, newRoot *h.FSNodeOverDag, mroot ipld.Node) error {
-	pnode, ok := mroot.(*dag.ProtoNode)
-	if !ok {
-		return h.ErrUnexpectedNodeType
-	}
-
-	fsn, err := ft.FSNodeFromBytes(pnode.Data())
-	if err != nil {
-		return err
-	}
-
-	metaFileSize := fsn.FileSize()
-	err = newRoot.AddChildDag(mroot, metaFileSize, db)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

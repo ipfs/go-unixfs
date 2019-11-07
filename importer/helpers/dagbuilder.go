@@ -24,6 +24,7 @@ var (
 	ErrUnknownNodeType        = errors.New("unknown node type")
 	ErrUnexpectedNodeType     = errors.New("unexpected node type")
 	ErrUnexpectedProgramState = errors.New("unexpected program state occurred")
+	ErrUnexpectedNilArgument  = errors.New("unexpected nil argument value")
 )
 
 type DagBuilderHelperInterface interface {
@@ -103,6 +104,9 @@ type DagBuilderParams struct {
 
 	// MetadataProcessed indicates whether token metadata is processed or not.
 	MetadataProcessed bool
+
+	// TrickleFormat indicates the client requested trickle tree format
+	TrickleFormat bool
 }
 
 // New generates a new DagBuilderHelper from the given params and a given
@@ -551,4 +555,17 @@ func (n *FSNodeOverDag) GetChild(ctx context.Context, i int, ds ipld.DAGService)
 	}
 
 	return NewFSNFromDag(pbn)
+}
+
+// fileTYpe returns the data type of the `ft.FSNode`.
+func (n *FSNodeOverDag) GetFileNodeType() pb.Data_DataType {
+	return n.file.Type()
+}
+
+func (n *FSNodeOverDag) ValidTrickleInnerNodeType() (pb.Data_DataType, error) {
+	fsType := n.GetFileNodeType()
+	if fsType != ft.TFile && fsType != ft.TTokenMeta {
+		return 0, ErrUnexpectedNodeType
+	}
+	return fsType, nil
 }

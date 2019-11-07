@@ -7,6 +7,12 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
+type SuperMeta struct {
+	ChunkSize     uint64
+	MaxLinks      uint64
+	TrickleFormat bool
+}
+
 type MetaDagBuilderHelper struct {
 	db          DagBuilderHelper
 	metaSpl     chunker.Splitter

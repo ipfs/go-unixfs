@@ -51,10 +51,14 @@ package balanced
 
 import (
 	"errors"
+	"fmt"
 	ft "github.com/TRON-US/go-unixfs"
 	h "github.com/TRON-US/go-unixfs/importer/helpers"
 	pb "github.com/TRON-US/go-unixfs/pb"
+	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	dag "github.com/ipfs/go-merkledag"
+	"golang.org/x/net/context"
 )
 
 // Layout builds a balanced DAG layout. In a balanced DAG of depth 1, leaf nodes
@@ -249,7 +253,6 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 func BuildMetadataDag(db *h.DagBuilderHelper) error {
 	mdb := db.GetMetaDb()
 	mdb.SetDb(db)
-
 	mdb.SetSpl()
 	root, fileSize, err := mdb.NewLeafDataNode(ft.TTokenMeta)
 	if err != nil {
@@ -369,4 +372,293 @@ func fillNodeRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, depth in
 	}
 
 	return filledNode, nodeFileSize, nil
+}
+
+func BalancedDagDepth(ctx context.Context, root *h.FSNodeOverDag, dserv ipld.DAGService) (int, error) {
+	if root == nil || root.NumChildren() <= 0 {
+		return 0, nil
+	}
+
+	firstChild, err := root.GetChild(ctx, 0, dserv)
+	if err != nil {
+		return -1, err
+	}
+	subDepth, err := BalancedDagDepth(ctx, firstChild, dserv)
+	if err != nil {
+		return -1, err
+	}
+	return subDepth + 1, nil
+}
+
+type lastChildFindHelper struct {
+	ctx context.Context
+	db  *h.DagBuilderHelper
+}
+
+func newLastChildFindHelper(ctx context.Context, root *h.FSNodeOverDag, db *h.DagBuilderHelper, depth int) *lastChildFindHelper {
+	return &lastChildFindHelper{
+		ctx: ctx,
+		db:  db,
+	}
+}
+
+type helperArguments struct {
+	root       *h.FSNodeOverDag
+	lastChild  *h.FSNodeOverDag
+	childDepth int
+	parent     *h.FSNodeOverDag
+}
+
+func (helper *lastChildFindHelper) find(args *helperArguments) error {
+	// Failure case
+	if args.root == nil {
+		return h.ErrUnexpectedNilArgument
+	}
+	// Base case: root is the last branch child.
+	if args.root.NumChildren() <= helper.db.Maxlinks() {
+		args.lastChild = args.root
+		return nil
+	}
+
+	// Normal case: root is not the last branch child.
+	var err error = nil
+	args.parent = args.root
+	args.childDepth--
+	args.root, err = args.root.GetChild(helper.ctx, args.root.NumChildren()-1, helper.db.GetDagServ())
+	if err != nil {
+		return err
+	}
+
+	err = helper.find(args)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type lastChildInfo struct {
+	lastChild  *h.FSNodeOverDag
+	childDepth int
+	parent     *h.FSNodeOverDag
+}
+
+func findLastChildInfo(ctx context.Context, root *h.FSNodeOverDag, db *h.DagBuilderHelper, depth int) (*lastChildInfo, error) {
+	// Normal case: the given `root` is a branch node.
+	findHelper := newLastChildFindHelper(ctx, root, db, depth)
+	args := &helperArguments{
+		root:       root,
+		childDepth: depth,
+	}
+	err := findHelper.find(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lastChildInfo{
+		lastChild:  args.lastChild,
+		childDepth: args.childDepth,
+		parent:     args.parent,
+	}, nil
+}
+
+// Precondition: The given `childInfo` is for a branch child, not for a leaf.
+func appendFillLastBranchChild(ctx context.Context, childInfo *lastChildInfo, db *h.DagBuilderHelper) error {
+	// Error case
+	if childInfo == nil {
+		return h.ErrUnexpectedProgramState
+	}
+
+	// Normal case
+	child := childInfo.lastChild
+	// child
+	filledChild, nchildSize, err := fillNodeRec(db, child, childInfo.childDepth, child.GetFileNodeType())
+	if err != nil {
+		return err
+	}
+	// Case $3 from the comments of Append()
+	parent := childInfo.parent
+	if parent != nil {
+		last := parent.NumChildren() - 1
+		parent.RemoveChild(last, db)
+		if err := parent.AddChild(filledChild, nchildSize, db); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Append appends the data in `db` to the balanced format dag.
+// The given `baseiNode` should include TFile or TTokenMeta FSNode.
+// Case #1: The given `baseiNode` is the root & leaf of a DAG of depth 0. It has UnixFS data in it.
+// Case #2: `baseiNode` is the root of a DAG of depth 1.
+// Case #3: A DAG of depth > 1
+func Append(ctx context.Context, baseiNode ipld.Node, db *h.DagBuilderHelper) (out ipld.Node, errOut error) {
+	baseD, ok := baseiNode.(*dag.ProtoNode)
+	if !ok {
+		return nil, dag.ErrNotProtobuf
+	}
+
+	tBase, err := h.NewFSNFromDag(baseD)
+	if err != nil {
+		return nil, err
+	}
+
+	fsType := tBase.GetFileNodeType()
+
+	treeDepth, err := BalancedDagDepth(ctx, tBase, db.GetDagServ())
+	if err != nil {
+		return nil, err
+	}
+
+	if treeDepth > 0 {
+		// Find the information regarding the last branch child node.
+		childInfo, err := findLastChildInfo(ctx, tBase, db, treeDepth)
+		if err != nil {
+			return nil, err
+		}
+
+		// Fill out the last branch child of `childInfo.parent` to make a complete subDag.
+		if err := appendFillLastBranchChild(ctx, childInfo, db); err != nil {
+			return nil, err
+		}
+	}
+	filledBase, err := tBase.GetDagNode()
+	if err != nil {
+		return nil, err
+	}
+	fileSize := tBase.FileSize()
+	if !db.Done() {
+		treeDepth++
+	}
+
+	// Exhaust appending data through normal way.
+	for currDepth := treeDepth; !db.Done(); currDepth++ {
+		// Add the `filledBase` as a child of the `newRoot`.
+		newRoot := db.NewFSNodeOverDag(fsType)
+		err = newRoot.AddChild(filledBase, fileSize, db)
+		if err != nil {
+			return nil, err
+		}
+
+		// Fill out the sub-DAG topped by `filledBase`.
+		filledBase, fileSize, err = fillNodeRec(db, newRoot, currDepth, fsType)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return filledBase, db.Add(filledBase)
+}
+
+// VerifyParams is used by VerifyBalancedDagStructure
+type VerifyParamsForBalanced struct {
+	Getter    ipld.NodeGetter
+	MaxLinks  int
+	TreeDepth int
+	Prefix    *cid.Prefix
+	RawLeaves bool
+	Metadata  bool
+}
+
+// VerifyBalancedDagStructure checks that the given dag matches
+// exactly the balanced dag datastructure layout
+func VerifyBalancedDagStructure(nd ipld.Node, p VerifyParamsForBalanced) error {
+	return verifyBalancedDagRec(nd, p)
+}
+
+// Recursive call for verifying the structure of a balanced dag
+func verifyBalancedDagRec(n ipld.Node, p VerifyParamsForBalanced) error {
+	codec := cid.DagProtobuf
+	depth := p.TreeDepth
+	if depth == 0 {
+		if len(n.Links()) > 0 {
+			return errors.New("expected direct block")
+		}
+		// zero depth dag is raw data block
+		switch nd := n.(type) {
+		case *dag.ProtoNode:
+			fsn, err := ft.FSNodeFromBytes(nd.Data())
+			if err != nil {
+				return err
+			}
+
+			if fsn.Type() != ft.TFile && fsn.Type() != ft.TRaw && fsn.Type() != ft.TTokenMeta {
+				return errors.New("expected data or raw block or metadata block")
+			}
+
+			if p.RawLeaves {
+				return errors.New("expected raw leaf, got a protobuf node")
+			}
+		case *dag.RawNode:
+			if !p.RawLeaves {
+				return errors.New("expected protobuf node as leaf")
+			}
+			codec = cid.Raw
+		default:
+			return errors.New("expected ProtoNode or RawNode")
+		}
+	}
+
+	// verify prefix
+	if p.Prefix != nil {
+		prefix := n.Cid().Prefix()
+		expect := *p.Prefix // make a copy
+		expect.Codec = uint64(codec)
+		if codec == cid.Raw && expect.Version == 0 {
+			expect.Version = 1
+		}
+		if expect.MhLength == -1 {
+			expect.MhLength = prefix.MhLength
+		}
+		if prefix != expect {
+			return fmt.Errorf("unexpected cid prefix: expected: %v; got %v", expect, prefix)
+		}
+	}
+
+	if depth == 0 {
+		return nil
+	}
+
+	nd, ok := n.(*dag.ProtoNode)
+	if !ok {
+		return errors.New("expected ProtoNode")
+	}
+
+	// Verify this is a branch node
+	fsn, err := ft.FSNodeFromBytes(nd.Data())
+	if err != nil {
+		return err
+	}
+
+	if p.Metadata {
+		if fsn.Type() != ft.TTokenMeta {
+			return fmt.Errorf("expected token meta as branch node, got: %s", fsn.Type())
+		}
+	} else {
+		if fsn.Type() != ft.TFile {
+			return fmt.Errorf("expected file as branch node, got: %s", fsn.Type())
+		}
+	}
+
+	if fsn.Type() == ft.TFile && len(fsn.Data()) > 0 {
+		return errors.New("branch node should not have FS data")
+	}
+
+	for i := 0; i < len(nd.Links()); i++ {
+		child, err := nd.Links()[i].GetNode(context.TODO(), p.Getter)
+		if err != nil {
+			return err
+		}
+
+		if i < p.MaxLinks {
+			// MaxLinks blocks
+			err := verifyBalancedDagRec(child, p)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

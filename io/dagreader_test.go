@@ -2,6 +2,7 @@ package io
 
 import (
 	"bytes"
+	"github.com/TRON-US/go-unixfs/importer/helpers"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -244,7 +245,7 @@ func TestMetadataRead(t *testing.T) {
 	dserv := testu.GetDAGServ()
 
 	inbuf, node := testu.GetRandomNode(t, dserv, 500,
-		testu.UseBalancedWithMetadata(inputMdata, 512))
+		testu.UseBalancedWithMetadata(helpers.DefaultLinksPerBlock, inputMdata, 512))
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 

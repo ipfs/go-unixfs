@@ -74,10 +74,7 @@ func BuildMetadataDag(db *h.DagBuilderHelper) error {
 	return mdb.Add(root)
 }
 
-// fillTrickleRec creates a trickle (sub-)tree with an optional maximum specified depth
-// in the case maxDepth is greater than zero, or with unlimited depth otherwise
-// (where the DAG builder will signal the end of data to end the function).
-func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDepth int, fsType pb.Data_DataType) (filledNode ipld.Node, nodeFileSize uint64, err error) {
+func ChildFilesystemNodeType(fsType pb.Data_DataType) (pb.Data_DataType, error) {
 	var nextFsType pb.Data_DataType
 	switch fsType {
 	case ft.TFile:
@@ -85,10 +82,20 @@ func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDe
 	case ft.TTokenMeta:
 		nextFsType = ft.TTokenMeta
 	default:
-		return nil, 0, h.ErrUnexpectedNodeType
+		return 0, h.ErrUnexpectedNodeType
 	}
+	return nextFsType, nil
+}
 
+// fillTrickleRec creates a trickle (sub-)tree with an optional maximum specified depth
+// in the case maxDepth is greater than zero, or with unlimited depth otherwise
+// (where the DAG builder will signal the end of data to end the function).
+func fillTrickleRec(db h.DagBuilderHelperInterface, node *h.FSNodeOverDag, maxDepth int, fsType pb.Data_DataType) (filledNode ipld.Node, nodeFileSize uint64, err error) {
 	// Always do this, even in the base case
+	nextFsType, err := ChildFilesystemNodeType(fsType)
+	if err != nil {
+		return nil, 0, err
+	}
 	if err := db.FillNodeLayer(node, nextFsType); err != nil {
 		return nil, 0, err
 	}
@@ -137,12 +144,18 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 	if err != nil {
 		return nil, err
 	}
+	baseFsType := fsn.GetFileNodeType()
 
 	// Get depth of this 'tree'
 	depth, repeatNumber := trickleDepthInfo(fsn, db.Maxlinks())
 	if depth == 0 {
 		// If direct blocks not filled...
-		if err := db.FillNodeLayer(fsn, ft.TRaw); err != nil {
+		nextFsType, err := ChildFilesystemNodeType(fsn.GetFileNodeType())
+		if err != nil {
+			return nil, err
+		}
+
+		if err := db.FillNodeLayer(fsn, nextFsType); err != nil {
 			return nil, err
 		}
 
@@ -169,8 +182,8 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 	// Now, continue filling out tree like normal
 	for i := depth; !db.Done(); i++ {
 		for j := 0; j < depthRepeat && !db.Done(); j++ {
-			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, ft.TFile)
+			nextChild := db.NewFSNodeOverDag(baseFsType)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, baseFsType)
 			if err != nil {
 				return nil, err
 			}
@@ -188,6 +201,7 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 }
 
 func appendFillLastChild(ctx context.Context, fsn *h.FSNodeOverDag, depth int, repeatNumber int, db *h.DagBuilderHelper) error {
+	// If there are direct leaves only, then there is no inner node to fill out.
 	if fsn.NumChildren() <= db.Maxlinks() {
 		return nil
 	}
@@ -218,11 +232,15 @@ func appendFillLastChild(ctx context.Context, fsn *h.FSNodeOverDag, depth int, r
 		return err
 	}
 
+	fsnFsType, err := fsn.ValidTrickleInnerNodeType()
+	if err != nil {
+		return err
+	}
 	// Partially filled depth layer
 	if repeatNumber != 0 {
 		for ; repeatNumber < depthRepeat && !db.Done(); repeatNumber++ {
 			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, depth, ft.TFile)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, depth, fsnFsType)
 			if err != nil {
 				return err
 			}
@@ -267,11 +285,15 @@ func appendRec(ctx context.Context, fsn *h.FSNodeOverDag, db *h.DagBuilderHelper
 		depth++
 	}
 
+	fsnFsType, err := fsn.ValidTrickleInnerNodeType()
+	if err != nil {
+		return nil, 0, err
+	}
 	// Now, continue filling out tree like normal
 	for i := depth; i < maxDepth && !db.Done(); i++ {
 		for j := 0; j < depthRepeat && !db.Done(); j++ {
 			nextChild := db.NewFSNodeOverDag(ft.TFile)
-			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, ft.TFile)
+			childNode, childFileSize, err := fillTrickleRec(db, nextChild, i, fsnFsType)
 			if err != nil {
 				return nil, 0, err
 			}

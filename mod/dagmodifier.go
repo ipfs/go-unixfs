@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/TRON-US/go-unixfs/importer/balanced"
 	"io"
 
 	ft "github.com/TRON-US/go-unixfs"
@@ -44,8 +45,10 @@ type DagModifier struct {
 	curWrOff   uint64
 	wrBuf      *bytes.Buffer
 
-	Prefix    cid.Prefix
-	RawLeaves bool
+	Prefix         cid.Prefix
+	RawLeaves      bool
+	BalancedFormat bool
+	MetadataDag    bool
 
 	read uio.DagReader
 }
@@ -55,6 +58,14 @@ type DagModifier struct {
 // version if not 0 raw leaves will also be enabled.  The Prefix and
 // RawLeaves options can be overridden by changing them after the call.
 func NewDagModifier(ctx context.Context, from ipld.Node, serv ipld.DAGService, spl chunker.SplitterGen) (*DagModifier, error) {
+	return newDagModifier(ctx, from, serv, spl, false)
+}
+
+func NewDagModifierBalanced(ctx context.Context, from ipld.Node, serv ipld.DAGService, spl chunker.SplitterGen) (*DagModifier, error) {
+	return newDagModifier(ctx, from, serv, spl, true)
+}
+
+func newDagModifier(ctx context.Context, from ipld.Node, serv ipld.DAGService, spl chunker.SplitterGen, balanced bool) (*DagModifier, error) {
 	switch from.(type) {
 	case *mdag.ProtoNode, *mdag.RawNode:
 		// ok
@@ -70,12 +81,13 @@ func NewDagModifier(ctx context.Context, from ipld.Node, serv ipld.DAGService, s
 	}
 
 	return &DagModifier{
-		curNode:   from.Copy(),
-		dagserv:   serv,
-		splitter:  spl,
-		ctx:       ctx,
-		Prefix:    prefix,
-		RawLeaves: rawLeaves,
+		curNode:        from.Copy(),
+		dagserv:        serv,
+		splitter:       spl,
+		ctx:            ctx,
+		Prefix:         prefix,
+		RawLeaves:      rawLeaves,
+		BalancedFormat: balanced,
 	}, nil
 }
 
@@ -363,7 +375,11 @@ func (dm *DagModifier) appendData(nd ipld.Node, spl chunker.Splitter) (ipld.Node
 		if err != nil {
 			return nil, err
 		}
-		return trickle.Append(dm.ctx, nd, db)
+		if dm.BalancedFormat {
+			return balanced.Append(dm.ctx, nd, db)
+		} else {
+			return trickle.Append(dm.ctx, nd, db)
+		}
 	default:
 		return nil, ErrNotUnixfs
 	}
@@ -602,4 +618,12 @@ func (dm *DagModifier) dagTruncate(ctx context.Context, n ipld.Node, size uint64
 	}
 
 	return nd, nil
+}
+
+func (dm *DagModifier) GetCtx() context.Context {
+	return dm.ctx
+}
+
+func (dm *DagModifier) GetDserv() ipld.DAGService {
+	return dm.dagserv
 }

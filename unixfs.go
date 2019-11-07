@@ -401,7 +401,7 @@ func ReadUnixFSNodeData(node ipld.Node) (data []byte, err error) {
 	}
 }
 
-// Extract the `unixfs.FSNode` from the `ipld.Node` (assuming this
+// ExtractFsNode extracts the `unixfs.FSNode` from the `ipld.Node` (assuming this
 // was implemented by a `mdag.ProtoNode`).
 func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 	protoNode, ok := node.(*dag.ProtoNode)
@@ -417,7 +417,7 @@ func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 	return fsNode, nil
 }
 
-// Returns metadata subDag root if the given 'nd' is the dummy
+// GetMetaSubdagRoot returns metadata subDag root if the given 'nd' is the dummy
 // root of a DAG with metadata subDag.
 func GetMetaSubdagRoot(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (ipld.Node, error) {
 	nd, ok := n.(*dag.ProtoNode)
@@ -428,7 +428,7 @@ func GetMetaSubdagRoot(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (
 	if nd.Links() != nil && len(nd.Links()) >= 2 {
 		link := nd.Links()[0]
 		c := link.Cid
-		child, err := serv.Get(context.Background(), c)
+		child, err := serv.Get(ctx, c)
 		if err != nil {
 			return nil, err
 		}
@@ -451,15 +451,20 @@ func GetMetaSubdagRoot(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (
 	return nil, ErrUnexpectedLinks
 }
 
-// Return ipld.Node slice of size 2
-// if the given 'nd' is top of the DAG with token metadata.
+type DagMetaNodes struct {
+	DataNode ipld.Node
+	MetaNode ipld.Node
+}
+
+// GetChildrenForDagWithMeta returns a struct containing both the meta root node and
+// the data root node, if the given 'nd' is top of the DAG with token metadata.
 // Return nil, nil if 'nb' is no such node and there is no error.
-func GetChildrenForDagWithMeta(ctx context.Context, nd ipld.Node, ds ipld.DAGService) ([]ipld.Node, error) {
-	var nodes = make([]ipld.Node, 2)
+func GetChildrenForDagWithMeta(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (*DagMetaNodes, error) {
+	nodes := &DagMetaNodes{}
 	for i := 0; i < 2; i++ {
 		lnk := nd.Links()[i]
 		c := lnk.Cid
-		child, err := ds.Get(context.Background(), c)
+		child, err := ds.Get(ctx, c)
 		if err != nil {
 			return nil, err
 		}
@@ -477,8 +482,10 @@ func GetChildrenForDagWithMeta(ctx context.Context, nd ipld.Node, ds ipld.DAGSer
 			if TTokenMeta != fsType {
 				return nil, nil
 			}
+			nodes.MetaNode = child
+		} else {
+			nodes.DataNode = child
 		}
-		nodes[i] = child
 	}
 
 	return nodes, nil

@@ -263,7 +263,7 @@ func checkAndSplitMetadata(ctx context.Context, nd ipld.Node, ds ipld.DAGService
 		if children == nil {
 			return nd, nil, nil
 		}
-		return children[1], children[0], nil
+		return children.DataNode, children.MetaNode, nil
 	}
 
 	return nd, nil, nil

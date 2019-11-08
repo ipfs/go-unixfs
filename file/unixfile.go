@@ -180,7 +180,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 	// Keep 'nd' if raw node
 	if !rawNode {
 		// Split metadata node and data node if available
-		dataNode, metaNode, err := checkAndSplitMetadata(ctx, nd, dserv)
+		dataNode, metaNode, err := checkAndSplitMetadata(ctx, nd, dserv, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -240,9 +240,9 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node, met
 // the DAG topped by the given 'nd'.
 // Case #1: if 'nd' is dummy root with metadata root node and user data root node being children
 //    return the second child node that is the root of user data sub-DAG.
-// Case #2: if 'nd' is metadata, return none.
+// Case #2: if 'nd' is metadata and the given `meta` is true, return nd. Otherwise return error.
 // Case #3: if 'nd' is user data, return 'nd'.
-func checkAndSplitMetadata(ctx context.Context, nd ipld.Node, ds ipld.DAGService) (ipld.Node, ipld.Node, error) {
+func checkAndSplitMetadata(ctx context.Context, nd ipld.Node, ds ipld.DAGService, meta bool) (ipld.Node, ipld.Node, error) {
 	n := nd.(*dag.ProtoNode)
 
 	fsType, err := ft.GetFSType(n)
@@ -251,7 +251,11 @@ func checkAndSplitMetadata(ctx context.Context, nd ipld.Node, ds ipld.DAGService
 	}
 
 	if ft.TTokenMeta == fsType {
-		return nil, nil, ft.ErrMetadataAccessDenied
+		if meta {
+			return nil, nd, nil
+		} else {
+			return nil, nil, ft.ErrMetadataAccessDenied
+		}
 	}
 
 	// Return user data and metadata if first child is of type TTokenMeta.

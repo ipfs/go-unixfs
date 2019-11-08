@@ -53,8 +53,9 @@ type NodeOpts struct {
 	Balanced    bool
 	rsNumData   uint64
 	rsNumParity uint64
-	metadata    []byte
-	chunkSize   uint64
+	Metadata    []byte
+	ChunkSize   uint64
+	MaxLinks    int
 }
 
 // Some shorthands for NodeOpts.
@@ -70,12 +71,13 @@ const (
 	TestRsDefaultNumParity = 20
 )
 
-func UseBalancedWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
-	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, metadata: mdata, chunkSize: chkSize}
+func UseBalancedWithMetadata(maxLinks int, mdata []byte, chkSize uint64) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, Metadata: mdata,
+		ChunkSize: chkSize, MaxLinks: maxLinks}
 }
 
-func UseTrickleWithMetadata(mdata []byte, chkSize uint64) NodeOpts {
-	return NodeOpts{Prefix: mdag.V0CidPrefix(), metadata: mdata, chunkSize: chkSize}
+func UseTrickleWithMetadata(maxLinks int, mdata []byte, chkSize uint64) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), Metadata: mdata, ChunkSize: chkSize, MaxLinks: maxLinks}
 }
 
 func ReedSolomonMetaBytes(numData, numParity, fileSize uint64) []byte {
@@ -105,8 +107,8 @@ func UseReedSolomon(numData, numParity, fileSize uint64, mdata []byte, chkSize u
 		ReedSolomonEnabled: true,
 		rsNumData:          numData,
 		rsNumParity:        numParity,
-		metadata:           metaBytes,
-		chunkSize:          chkSize,
+		Metadata:           metaBytes,
+		ChunkSize:          chkSize,
 	}, rsMeta
 }
 
@@ -120,13 +122,17 @@ func init() {
 func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ipld.Node {
 	in := bytes.NewReader(data)
 
+	maxLinks := h.DefaultLinksPerBlock
+	if opts.MaxLinks != 0 {
+		maxLinks = opts.MaxLinks
+	}
 	dbp := h.DagBuilderParams{
 		Dagserv:       dserv,
-		Maxlinks:      h.DefaultLinksPerBlock,
+		Maxlinks:      maxLinks,
 		CidBuilder:    opts.Prefix,
 		RawLeaves:     opts.RawLeavesUsed,
-		TokenMetadata: opts.metadata,
-		ChunkSize:     opts.chunkSize,
+		TokenMetadata: opts.Metadata,
+		ChunkSize:     opts.ChunkSize,
 	}
 
 	if opts.ReedSolomonEnabled {

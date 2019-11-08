@@ -50,6 +50,7 @@
 package balanced
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	ft "github.com/TRON-US/go-unixfs"
@@ -58,7 +59,6 @@ import (
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
-	"golang.org/x/net/context"
 )
 
 // Layout builds a balanced DAG layout. In a balanced DAG of depth 1, leaf nodes
@@ -555,6 +555,7 @@ func Append(ctx context.Context, baseiNode ipld.Node, db *h.DagBuilderHelper) (o
 // VerifyParams is used by VerifyBalancedDagStructure
 type VerifyParamsForBalanced struct {
 	Getter    ipld.NodeGetter
+	Ctx       context.Context
 	MaxLinks  int
 	TreeDepth int
 	Prefix    *cid.Prefix
@@ -647,7 +648,7 @@ func verifyBalancedDagRec(n ipld.Node, p VerifyParamsForBalanced) error {
 	}
 
 	for i := 0; i < len(nd.Links()); i++ {
-		child, err := nd.Links()[i].GetNode(context.TODO(), p.Getter)
+		child, err := nd.Links()[i].GetNode(p.Ctx, p.Getter)
 		if err != nil {
 			return err
 		}

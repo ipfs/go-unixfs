@@ -7,6 +7,8 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
+// SuperMeta contains the common metadata fields for a BTFS object
+// to be used for metadata readers and modifiers
 type SuperMeta struct {
 	ChunkSize     uint64
 	MaxLinks      uint64

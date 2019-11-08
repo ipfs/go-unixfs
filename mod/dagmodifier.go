@@ -6,10 +6,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/TRON-US/go-unixfs/importer/balanced"
 	"io"
 
 	ft "github.com/TRON-US/go-unixfs"
+	"github.com/TRON-US/go-unixfs/importer/balanced"
 	help "github.com/TRON-US/go-unixfs/importer/helpers"
 	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
 	uio "github.com/TRON-US/go-unixfs/io"
@@ -171,7 +171,7 @@ func (dm *DagModifier) Write(b []byte) (int, error) {
 
 // Size returns the Filesize of the node
 func (dm *DagModifier) Size() (int64, error) {
-	fileSize, err := fileSize(dm.curNode)
+	fileSize, err := FileSize(dm.curNode)
 	if err != nil {
 		return 0, err
 	}
@@ -181,7 +181,7 @@ func (dm *DagModifier) Size() (int64, error) {
 	return int64(fileSize), nil
 }
 
-func fileSize(n ipld.Node) (uint64, error) {
+func FileSize(n ipld.Node) (uint64, error) {
 	switch nd := n.(type) {
 	case *mdag.ProtoNode:
 		fsn, err := ft.FSNodeFromBytes(nd.Data())
@@ -212,7 +212,7 @@ func (dm *DagModifier) Sync() error {
 	// Number of bytes we're going to write
 	buflen := dm.wrBuf.Len()
 
-	fs, err := fileSize(dm.curNode)
+	fs, err := FileSize(dm.curNode)
 	if err != nil {
 		return err
 	}
@@ -571,7 +571,7 @@ func (dm *DagModifier) dagTruncate(ctx context.Context, n ipld.Node, size uint64
 			return nil, err
 		}
 
-		childsize, err := fileSize(child)
+		childsize, err := FileSize(child)
 		if err != nil {
 			return nil, err
 		}

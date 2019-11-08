@@ -3,8 +3,6 @@ package mod
 import (
 	"context"
 	"fmt"
-	"github.com/TRON-US/go-unixfs/importer/balanced"
-	"github.com/TRON-US/go-unixfs/importer/helpers"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -15,6 +13,8 @@ import (
 	dag "github.com/ipfs/go-merkledag"
 
 	"github.com/TRON-US/go-unixfs"
+	"github.com/TRON-US/go-unixfs/importer/balanced"
+	"github.com/TRON-US/go-unixfs/importer/helpers"
 	u "github.com/ipfs/go-ipfs-util"
 )
 
@@ -69,6 +69,7 @@ func verifyNode(t *testing.T, orig []byte, dm *DagModifier, opts testu.NodeOpts,
 		}
 		err = balanced.VerifyBalancedDagStructure(nd, balanced.VerifyParamsForBalanced{
 			Getter:    dm.dagserv,
+			Ctx:       dm.ctx,
 			MaxLinks:  maxLinks,
 			TreeDepth: treeDepth,
 			Prefix:    &opts.Prefix,
@@ -161,7 +162,7 @@ func testDagModifierBasic(t *testing.T, opts testu.NodeOpts) {
 		t.Fatal(err)
 	}
 
-	size, err := fileSize(node)
+	size, err := FileSize(node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -929,7 +930,7 @@ func testTrickleMetaDagAppend(t *testing.T, opts testu.NodeOpts, dataSize uint64
 		t.Fatal(err)
 	}
 
-	size, err := fileSize(node)
+	size, err := FileSize(node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -983,7 +984,7 @@ func testBalancedMetaDagAppendBasic(t *testing.T, opts testu.NodeOpts, dataSize 
 		t.Fatal(err)
 	}
 
-	size, err := fileSize(node)
+	size, err := FileSize(node)
 	if err != nil {
 		t.Fatal(err)
 	}

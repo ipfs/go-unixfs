@@ -557,7 +557,7 @@ func (n *FSNodeOverDag) GetChild(ctx context.Context, i int, ds ipld.DAGService)
 	return NewFSNFromDag(pbn)
 }
 
-// fileTYpe returns the data type of the `ft.FSNode`.
+// GetFileNodeType returns the data type of the `ft.FSNode`.
 func (n *FSNodeOverDag) GetFileNodeType() pb.Data_DataType {
 	return n.file.Type()
 }

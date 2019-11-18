@@ -21,6 +21,22 @@ type MetaDagBuilderHelper struct {
 	metaDagRoot ipld.Node // Metadata Dag root node
 }
 
+func NewMetaDagBuilderHelper(idb DagBuilderHelper, spl chunker.Splitter, mroot ipld.Node) *MetaDagBuilderHelper {
+	return &MetaDagBuilderHelper{
+		db:          idb,
+		metaSpl:     spl,
+		metaDagRoot: mroot,
+	}
+}
+
+func GetSuperMeta(chunkSize uint64, maxLinks uint64, trickleFormat bool) interface{} {
+	return &SuperMeta{
+		ChunkSize:     chunkSize,
+		MaxLinks:      maxLinks,
+		TrickleFormat: trickleFormat,
+	}
+}
+
 func (mdb *MetaDagBuilderHelper) SetSpl() {
 	mdb.db.spl = mdb.metaSpl
 }
@@ -41,8 +57,8 @@ func (mdb *MetaDagBuilderHelper) FillNodeLayer(node *FSNodeOverDag, fsNodeType p
 	return mdb.db.FillNodeLayer(node, fsNodeType)
 }
 
-func (mdb *MetaDagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64) (ipld.Node, error) {
-	return mdb.db.AttachMetadataDag(root, fileSize)
+func (mdb *MetaDagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64, mRoot ipld.Node) (ipld.Node, error) {
+	return mdb.db.AttachMetadataDag(root, fileSize, mRoot)
 }
 
 // NewMetaLeafDataNode builds a metadata `node` with the meta data

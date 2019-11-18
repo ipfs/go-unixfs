@@ -47,7 +47,7 @@ func TestUnixFsFileReadWithMetadata(t *testing.T) {
 	inputMeta := []byte(`{"hello":1,"world":["33","11","22"]}`)
 	dserv := testu.GetDAGServ()
 	inbuf, node := testu.GetRandomNode(t, dserv, 1024,
-		testu.UseBalancedWithMetadata(helpers.DefaultLinksPerBlock, inputMeta, 512))
+		testu.UseBalancedWithMetadata(helpers.DefaultLinksPerBlock, inputMeta, 512, nil))
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 

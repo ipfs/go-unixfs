@@ -51,7 +51,7 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		root, err = db.AttachMetadataDag(root, fileSize)
+		root, err = db.AttachMetadataDag(root, fileSize, db.GetMetaDb().GetMetaDagRoot())
 		if err != nil {
 			return nil, err
 		}
@@ -62,16 +62,29 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 func BuildMetadataDag(db *h.DagBuilderHelper) error {
 	mdb := db.GetMetaDb()
 	mdb.SetDb(db)
-
 	mdb.SetSpl()
-	newRoot := mdb.NewFSNodeOverDag(ft.TTokenMeta)
-	root, _, err := fillTrickleRec(mdb, newRoot, -1, ft.TTokenMeta)
+
+	_, err := BuildNewMetaDataDag(mdb)
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func BuildNewMetaDataDag(mdb *h.MetaDagBuilderHelper) (ipld.Node, error) {
+	newRoot := mdb.NewFSNodeOverDag(ft.TTokenMeta)
+	root, _, err := fillTrickleRec(mdb, newRoot, -1, ft.TTokenMeta)
+	if err != nil {
+		return nil, err
+	}
 
 	mdb.SetMetaDagRoot(root)
-	return mdb.Add(root)
+	err = mdb.Add(root)
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
 }
 
 func ChildFilesystemNodeType(fsType pb.Data_DataType) (pb.Data_DataType, error) {

@@ -35,7 +35,7 @@ type DagBuilderHelperInterface interface {
 	Add(ipld.Node) error
 	NewLeafDataNode(pb.Data_DataType) (ipld.Node, uint64, error)
 	FillNodeLayer(*FSNodeOverDag, pb.Data_DataType) error
-	AttachMetadataDag(ipld.Node, uint64) (ipld.Node, error)
+	AttachMetadataDag(ipld.Node, uint64, ipld.Node) (ipld.Node, error)
 }
 
 // dagBuilderHelper contains the shared fields among various different helpers
@@ -408,12 +408,12 @@ func (db *DagBuilderHelper) NewFSNFromDag(nd *dag.ProtoNode) (*FSNodeOverDag, er
 	return NewFSNFromDag(nd)
 }
 
-func (db *DagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64) (ipld.Node, error) {
+func (db *DagBuilderHelper) AttachMetadataDag(root ipld.Node, fileSize uint64, metaRoot ipld.Node) (ipld.Node, error) {
 	// Create a 'newRoot'.
 	newRoot := db.NewFSNodeOverDag(ft.TFile)
 
 	// Add metadata DAG as first child of 'newRoot'.
-	err := db.addMetadataChild(newRoot, db.GetMetaDb().GetMetaDagRoot())
+	err := db.addMetadataChild(newRoot, metaRoot)
 	if err != nil {
 		return nil, err
 	}

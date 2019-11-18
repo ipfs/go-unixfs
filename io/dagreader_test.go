@@ -245,7 +245,7 @@ func TestMetadataRead(t *testing.T) {
 	dserv := testu.GetDAGServ()
 
 	inbuf, node := testu.GetRandomNode(t, dserv, 500,
-		testu.UseBalancedWithMetadata(helpers.DefaultLinksPerBlock, inputMdata, 512))
+		testu.UseBalancedWithMetadata(helpers.DefaultLinksPerBlock, inputMdata, 512, nil))
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 

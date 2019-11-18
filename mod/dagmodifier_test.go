@@ -1,40 +1,53 @@
 package mod
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"testing"
 
-	trickle "github.com/TRON-US/go-unixfs/importer/trickle"
+	"github.com/TRON-US/go-unixfs/importer/trickle"
 	uio "github.com/TRON-US/go-unixfs/io"
 	testu "github.com/TRON-US/go-unixfs/test"
+	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
 
+	chunker "github.com/TRON-US/go-btfs-chunker"
 	"github.com/TRON-US/go-unixfs"
 	"github.com/TRON-US/go-unixfs/importer/balanced"
 	"github.com/TRON-US/go-unixfs/importer/helpers"
 	u "github.com/ipfs/go-ipfs-util"
 )
 
-func testModWrite(t *testing.T, beg, size uint64, orig []byte, dm *DagModifier, opts testu.NodeOpts, meta bool) []byte {
-	newdata := make([]byte, size)
-	r := u.NewTimeSeededRand()
-	r.Read(newdata)
+func testModWrite(t *testing.T, beg, modSize uint64, orig []byte, dm *DagModifier, opts testu.NodeOpts, meta bool) []byte {
+	return testModWriteAndVerify(t, beg, modSize, orig, nil, dm, opts, meta)
+}
 
-	if size+beg > uint64(len(orig)) {
-		orig = append(orig, make([]byte, (size+beg)-uint64(len(orig)))...)
+func testModWriteAndVerify(t *testing.T, beg, modSize uint64, orig []byte, newdata []byte, dm *DagModifier, opts testu.NodeOpts, meta bool) []byte {
+	if newdata == nil && modSize == 0 {
+		t.Fatalf("Invalid input arguments! modSize 0 but newData is nil")
 	}
-	copy(orig[beg:], newdata)
+
+	if newdata == nil {
+		newdata = make([]byte, modSize)
+		r := u.NewTimeSeededRand()
+		r.Read(newdata)
+
+		if modSize+beg > uint64(len(orig)) {
+			orig = append(orig, make([]byte, (modSize+beg)-uint64(len(orig)))...)
+		}
+		copy(orig[beg:], newdata)
+	}
 
 	nmod, err := dm.WriteAt(newdata, int64(beg))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if nmod != int(size) {
-		t.Fatalf("Mod length not correct! %d != %d", nmod, size)
+	if nmod != int(modSize) {
+		t.Fatalf("Mod length not correct! %d != %d", nmod, modSize)
 	}
 
 	verifyNode(t, orig, dm, opts, meta)
@@ -893,11 +906,12 @@ func getOffset(reader uio.DagReader) int64 {
 
 func TestTrickleMetaDagAppend(t *testing.T) {
 	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
+	mDataToModify := []byte(`{"testitem":1234}`)
 	t.Run("opts=UseTrickleWithMetadata-4", func(t *testing.T) {
-		testTrickleMetaDagAppend(t, testu.UseTrickleWithMetadata(2, inputMdata, 32), 4)
+		testTrickleMetaDagAppend(t, testu.UseTrickleWithMetadata(2, inputMdata, 32, mDataToModify), 4)
 	})
 	t.Run("opts=UseTrickleWithMetadata-16", func(t *testing.T) {
-		testTrickleMetaDagAppend(t, testu.UseTrickleWithMetadata(2, inputMdata, 8), 16)
+		testTrickleMetaDagAppend(t, testu.UseTrickleWithMetadata(2, inputMdata, 8, mDataToModify), 16)
 	})
 }
 
@@ -942,55 +956,114 @@ func testTrickleMetaDagAppend(t *testing.T, opts testu.NodeOpts, dataSize uint64
 }
 
 func TestBalancedMetaDagAppend(t *testing.T) {
-	inputMdataDepthZero := []byte(`{"Price":12.4}`)
+	inMdataDepthZero := []byte(`{"Price":11.2}`)
+	mDataToModify := []byte(`{"number":1234}`)
 	inputMdata := []byte(`{"nodeid":"QmURnhjU6b2Si4rqwfpD4FDGTzJH3hGRAWSQmXtagywwdz","Price":12.4}`)
-	t.Run("opts=UseBalancedWithDepthZeroMetadata-4", func(t *testing.T) {
-		testBalancedMetaDagAppendBasic(t, testu.UseBalancedWithMetadata(2, inputMdataDepthZero, 32), 72)
+	userData := []byte("existing file contents")
+
+	t.Run("opts=UseBalancedWithDepthZeroMetadata-32-staticData", func(t *testing.T) {
+		cid := "QmaLy2PZK3PyiLjYLo7QPW4UDVT3igSEXUhwG6HN4tX2Ae"
+		testBalancedMetadataAppendWithUserData(t, testu.UseBalancedWithMetadata(2, inMdataDepthZero, 32, mDataToModify), userData, cid)
 	})
-	t.Run("opts=UseBalancedWithDepthOneMetadata-16", func(t *testing.T) {
-		testBalancedMetaDagAppendBasic(t, testu.UseBalancedWithMetadata(2, inputMdata, 32), 72)
+	t.Run("opts=UseBalancedWithDepthZeroMetadata-32", func(t *testing.T) {
+		testBalancedMetadataAppend(t, testu.UseBalancedWithMetadata(2, inMdataDepthZero, 32, mDataToModify), 72, "")
 	})
-	t.Run("opts=UseBalancedWithDepthTwoMetadata-64", func(t *testing.T) {
-		testBalancedMetaDagAppendBasic(t, testu.UseBalancedWithMetadata(2, inputMdata, 8), 72)
+	t.Run("opts=UseBalancedWithDepthOneMetadata-32", func(t *testing.T) {
+		testBalancedMetadataAppend(t, testu.UseBalancedWithMetadata(2, inputMdata, 32, mDataToModify), 72, "")
+	})
+	t.Run("opts=UseBalancedWithDepthTwoMetadata-8", func(t *testing.T) {
+		testBalancedMetadataAppend(t, testu.UseBalancedWithMetadata(2, inputMdata, 8, mDataToModify), 72, "")
 	})
 }
 
-func testBalancedMetaDagAppendBasic(t *testing.T, opts testu.NodeOpts, dataSize uint64) {
-	dserv := testu.GetDAGServ()
-	inputMdata := opts.Metadata
+func testBalancedMetadataAppend(t *testing.T, opts testu.NodeOpts, userDataSize int64, cid string) {
+	testBalancedMetaDagAppend(t, opts, userDataSize, nil, true, cid)
+}
 
-	_, node := testu.GetRandomNode(t, dserv, int64(dataSize), opts)
+func testBalancedMetadataAppendWithUserData(t *testing.T, opts testu.NodeOpts, userData []byte, cid string) {
+	testBalancedMetaDagAppend(t, opts, 0, userData, false, cid)
+}
+
+func testBalancedMetaDagAppend(t *testing.T, opts testu.NodeOpts, userDataSize int64, userData []byte, randomData bool, ecid string) {
+	dserv := testu.GetDAGServ()
+	mDataToModifyWith := opts.MetadataToMdify
+	var nd ipld.Node
+	if randomData {
+		_, nd = testu.GetRandomNode(t, dserv, userDataSize, opts)
+	} else {
+		nd = testu.GetNodeWithGivenData(t, dserv, userData, opts)
+	}
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	mnode, err := unixfs.GetMetaSubdagRoot(ctx, node, dserv)
+	children, err := unixfs.GetChildrenForDagWithMeta(ctx, nd, dserv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mnode := children.MetaNode
+	dnode := children.DataNode
+
+	dr := bytes.NewReader(mDataToModifyWith)
+	dbp := testu.GetDagBuilderParams(dserv, opts)
+	db, err := dbp.New(chunker.NewMetaSplitter(dr, uint64(opts.ChunkSize)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dagmod, err := NewDagModifierBalanced(ctx, mnode, dserv, testu.MetaSplitterGen((int64(opts.ChunkSize))), opts.MaxLinks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mdagmod := NewMetaDagModifierBalanced(dagmod, db)
+
+	// Append metadata.
+	beg := uint64(len(opts.Metadata))
+	length := uint64(len(mDataToModifyWith))
+	orig := make([]byte, beg+length)
+	copy(orig, opts.Metadata)
+	orig = append(orig[:beg], mDataToModifyWith...)
+	_ = testModWriteAndVerify(t, beg, length, orig, mDataToModifyWith, dagmod, opts, true)
+
+	mnode, err = mdagmod.GetNode()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dagmod, err := NewDagModifierBalanced(ctx, mnode, dserv, testu.MetaSplitterGen((int64(opts.ChunkSize))))
+	size, err := FileSize(mnode)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// "Append"
-	beg := uint64(len(inputMdata))
-	length := uint64(dataSize)
-	_ = testModWrite(t, beg, length, inputMdata, dagmod, opts, true)
+	expected := uint64(beg + length)
+	if size != expected {
+		t.Fatalf("Updated metadata reported size is incorrect [%d != %d]", size, expected)
+	}
 
-	// Verify reported length
-	node, err = dagmod.GetNode()
+	fileSize, err := FileSize(dnode)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	size, err := FileSize(node)
+	// Attach metadata sub-DAG.
+	root, err := mdagmod.db.AttachMetadataDag(dnode, fileSize, mnode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mdagmod.db.Add(root)
+	size, err = FileSize(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := uint64(beg + dataSize)
+	expected = uint64(beg+length) + uint64(userDataSize)
+	if !randomData {
+		expected = uint64(beg+length) + uint64(len(userData))
+	}
+
 	if size != expected {
 		t.Fatalf("Final reported size is incorrect [%d != %d]", size, expected)
+	}
+	cs := root.Cid().String()
+	if ecid != "" && ecid != cs {
+		t.Fatalf("Returned cid value [%s] is not expected value [%s]", cs, ecid)
 	}
 }

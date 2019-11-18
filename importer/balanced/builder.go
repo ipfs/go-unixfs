@@ -179,7 +179,7 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		root, err = db.AttachMetadataDag(root, fileSize)
+		root, err = db.AttachMetadataDag(root, fileSize, db.GetMetaDb().GetMetaDagRoot())
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +199,7 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 		// This works without Filestore support (`ProcessFileStore`).
 		// TODO: Why? Is there a test case missing?
 		if addMetaDag {
-			root, err = db.AttachMetadataDag(root, 0)
+			root, err = db.AttachMetadataDag(root, 0, db.GetMetaDb().GetMetaDagRoot())
 			if err != nil {
 				return nil, err
 			}
@@ -239,7 +239,7 @@ func layout(db *h.DagBuilderHelper, addMetaDag bool) (ipld.Node, error) {
 
 	// Add token metadata DAG, if exists, as a child to the 'newRoot'.
 	if addMetaDag {
-		root, err = db.AttachMetadataDag(root, fileSize)
+		root, err = db.AttachMetadataDag(root, fileSize, db.GetMetaDb().GetMetaDagRoot())
 		if err != nil {
 			return nil, err
 		}
@@ -254,13 +254,24 @@ func BuildMetadataDag(db *h.DagBuilderHelper) error {
 	mdb := db.GetMetaDb()
 	mdb.SetDb(db)
 	mdb.SetSpl()
-	root, fileSize, err := mdb.NewLeafDataNode(ft.TTokenMeta)
+
+	_, err := BuildNewMetaDataDag(mdb)
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// BuildNewMetaDataDag's preconditions include
+// mdb's splitter is already set up.
+func BuildNewMetaDataDag(mdb *h.MetaDagBuilderHelper) (ipld.Node, error) {
+	root, fileSize, err := mdb.NewLeafDataNode(ft.TTokenMeta)
+	if err != nil {
+		return nil, err
+	}
 
 	// Each time a DAG of a certain `depth` is filled (because it
-	// has reached its maximum capacity of `db.Maxlinks()` per node)
+	// has reached its maximum capacity of `mdb.Maxlinks()` per node)
 	// extend it by making it a sub-DAG of a bigger DAG with `depth+1`.
 	for depth := 1; !mdb.Done(); depth++ {
 
@@ -268,7 +279,7 @@ func BuildMetadataDag(db *h.DagBuilderHelper) error {
 		newRoot := mdb.NewFSNodeOverDag(ft.TTokenMeta)
 		err = newRoot.AddChild(root, fileSize, mdb)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Fill the `newRoot` (that has the old `root` already as child)
@@ -276,12 +287,17 @@ func BuildMetadataDag(db *h.DagBuilderHelper) error {
 		// it will become "old").
 		root, fileSize, err = fillNodeRec(mdb, newRoot, depth, ft.TTokenMeta)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	mdb.SetMetaDagRoot(root)
-	return mdb.Add(root)
+	err = mdb.Add(root)
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
 }
 
 // fillNodeRec will "fill" the given internal (non-leaf) `node` with data by

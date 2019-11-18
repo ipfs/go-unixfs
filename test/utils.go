@@ -50,12 +50,13 @@ type NodeOpts struct {
 	// Enables reed solomon splitter
 	ReedSolomonEnabled bool
 	// Enables balanced DAG to be used than trickle.
-	Balanced    bool
-	rsNumData   uint64
-	rsNumParity uint64
-	Metadata    []byte
-	ChunkSize   uint64
-	MaxLinks    int
+	Balanced        bool
+	rsNumData       uint64
+	rsNumParity     uint64
+	Metadata        []byte
+	ChunkSize       uint64
+	MaxLinks        int
+	MetadataToMdify []byte
 }
 
 // Some shorthands for NodeOpts.
@@ -71,13 +72,14 @@ const (
 	TestRsDefaultNumParity = 20
 )
 
-func UseBalancedWithMetadata(maxLinks int, mdata []byte, chkSize uint64) NodeOpts {
+func UseBalancedWithMetadata(maxLinks int, mdata []byte, chkSize uint64, mdata2 []byte) NodeOpts {
 	return NodeOpts{Prefix: mdag.V0CidPrefix(), Balanced: true, Metadata: mdata,
-		ChunkSize: chkSize, MaxLinks: maxLinks}
+		ChunkSize: chkSize, MaxLinks: maxLinks, MetadataToMdify: mdata2}
 }
 
-func UseTrickleWithMetadata(maxLinks int, mdata []byte, chkSize uint64) NodeOpts {
-	return NodeOpts{Prefix: mdag.V0CidPrefix(), Metadata: mdata, ChunkSize: chkSize, MaxLinks: maxLinks}
+func UseTrickleWithMetadata(maxLinks int, mdata []byte, chkSize uint64, mdata2 []byte) NodeOpts {
+	return NodeOpts{Prefix: mdag.V0CidPrefix(), Metadata: mdata, ChunkSize: chkSize,
+		MaxLinks: maxLinks, MetadataToMdify: mdata2}
 }
 
 func ReedSolomonMetaBytes(numData, numParity, fileSize uint64) []byte {
@@ -118,15 +120,12 @@ func init() {
 	UseBlake2b256.Prefix.MhLength = -1
 }
 
-// GetNode returns a unixfs file node with the specified data.
-func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ipld.Node {
-	in := bytes.NewReader(data)
-
+func GetDagBuilderParams(dserv ipld.DAGService, opts NodeOpts) *h.DagBuilderParams {
 	maxLinks := h.DefaultLinksPerBlock
 	if opts.MaxLinks != 0 {
 		maxLinks = opts.MaxLinks
 	}
-	dbp := h.DagBuilderParams{
+	return &h.DagBuilderParams{
 		Dagserv:       dserv,
 		Maxlinks:      maxLinks,
 		CidBuilder:    opts.Prefix,
@@ -134,6 +133,12 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 		TokenMetadata: opts.Metadata,
 		ChunkSize:     opts.ChunkSize,
 	}
+}
+
+// GetNode returns a unixfs file node with the specified data.
+func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ipld.Node {
+	in := bytes.NewReader(data)
+	dbp := GetDagBuilderParams(dserv, opts)
 
 	if opts.ReedSolomonEnabled {
 		spl, err := chunker.NewReedSolomonSplitter(in, opts.rsNumData, opts.rsNumParity, 500)
@@ -204,6 +209,11 @@ func GetRandomNode(t testing.TB, dserv ipld.DAGService, size int64, opts NodeOpt
 
 	node := GetNode(t, dserv, buf, opts)
 	return buf, node
+}
+
+func GetNodeWithGivenData(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ipld.Node {
+	node := GetNode(t, dserv, data, opts)
+	return node
 }
 
 // ArrComp checks if two byte slices are the same.

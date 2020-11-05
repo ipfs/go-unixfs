@@ -6,6 +6,8 @@ package unixfs
 import (
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	proto "github.com/gogo/protobuf/proto"
 	dag "github.com/ipfs/go-merkledag"
@@ -222,6 +224,17 @@ func (n *FSNode) Fanout() uint64 {
 	return n.format.GetFanout()
 }
 
+func (n *FSNode) Mode() os.FileMode {
+	return os.FileMode(n.format.GetMode())
+}
+
+func (n *FSNode) MTime() time.Time {
+	if t := n.format.GetMtime(); t != nil {
+		return time.Unix(*t.Seconds, int64(*t.Nanos))
+	}
+	return time.Time{}
+}
+
 // AddBlockSize adds the size of the next child block of this node
 func (n *FSNode) AddBlockSize(s uint64) {
 	n.UpdateFilesize(int64(s))
@@ -302,6 +315,17 @@ func (n *FSNode) IsDir() bool {
 	default:
 		return false
 	}
+}
+
+func (n *FSNode) SetMtime(ts time.Time) {
+	n.format.Mtime = &pb.IPFSTimestamp{
+		Seconds: proto.Int64(ts.Unix()),
+		Nanos:   proto.Uint32(uint32(ts.Nanosecond())),
+	}
+}
+
+func (n *FSNode) SetMode(m os.FileMode) {
+	n.format.Mode = proto.Uint32(uint32(m))
 }
 
 // Metadata is used to store additional FSNode information.

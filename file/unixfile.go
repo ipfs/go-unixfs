@@ -3,6 +3,8 @@ package unixfile
 import (
 	"context"
 	"errors"
+	"os"
+	"time"
 
 	ft "github.com/ipfs/go-unixfs"
 	uio "github.com/ipfs/go-unixfs/io"
@@ -122,12 +124,29 @@ func (d *ufsDirectory) Size() (int64, error) {
 	return d.size, nil
 }
 
+func (d *ufsDirectory) Mode() os.FileMode {
+	panic("implement me")
+}
+
+func (d *ufsDirectory) ModTime() time.Time {
+	panic("implement me")
+}
+
 type ufsFile struct {
 	uio.DagReader
+	*ft.FSNode
 }
 
 func (f *ufsFile) Size() (int64, error) {
 	return int64(f.DagReader.Size()), nil
+}
+
+func (f *ufsFile) Mode() os.FileMode {
+	return f.FSNode.Mode()
+}
+
+func (f *ufsFile) ModTime() time.Time {
+	return f.FSNode.MTime()
 }
 
 func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode) (files.Directory, error) {
@@ -151,12 +170,16 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 }
 
 func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (files.Node, error) {
+	var ufs = ufsFile{}
+
 	switch dn := nd.(type) {
 	case *dag.ProtoNode:
 		fsn, err := ft.FSNodeFromBytes(dn.Data())
 		if err != nil {
 			return nil, err
 		}
+		ufs.FSNode = fsn
+
 		if fsn.IsDir() {
 			return newUnixfsDir(ctx, dserv, dn)
 		}
@@ -174,9 +197,8 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 		return nil, err
 	}
 
-	return &ufsFile{
-		DagReader: dr,
-	}, nil
+	ufs.DagReader = dr
+	return &ufs, nil
 }
 
 var _ files.Directory = &ufsDirectory{}

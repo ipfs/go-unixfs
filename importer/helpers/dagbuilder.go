@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"time"
 
 	dag "github.com/ipfs/go-merkledag"
 
@@ -30,6 +31,8 @@ type DagBuilderHelper struct {
 	nextData   []byte // the next item to return.
 	maxlinks   int
 	cidBuilder cid.Builder
+	fileMode   os.FileMode
+	fileMtime  time.Time
 
 	// Filestore support variables.
 	// ----------------------------
@@ -62,6 +65,12 @@ type DagBuilderParams struct {
 	// DAGService to write blocks to (required)
 	Dagserv ipld.DAGService
 
+	// The unixfs file mode
+	FileMode os.FileMode
+
+	// The unixfs last modified time
+	FileMtime time.Time
+
 	// NoCopy signals to the chunker that it should track fileinfo for
 	// filestore adds
 	NoCopy bool
@@ -76,6 +85,8 @@ func (dbp *DagBuilderParams) New(spl chunker.Splitter) (*DagBuilderHelper, error
 		rawLeaves:  dbp.RawLeaves,
 		cidBuilder: dbp.CidBuilder,
 		maxlinks:   dbp.Maxlinks,
+		fileMode:   dbp.FileMode,
+		fileMtime:  dbp.FileMtime,
 	}
 	if fi, ok := spl.Reader().(files.FileInfo); dbp.NoCopy && ok {
 		db.fullPath = fi.AbsPath()
@@ -161,6 +172,8 @@ func (db *DagBuilderHelper) NewLeafNode(data []byte, fsNodeType pb.Data_DataType
 	// Encapsulate the data in UnixFS node (instead of a raw node).
 	fsNodeOverDag := db.NewFSNodeOverDag(fsNodeType)
 	fsNodeOverDag.SetFileData(data)
+	fsNodeOverDag.SetFileMetaData(db)
+
 	node, err := fsNodeOverDag.Commit()
 	if err != nil {
 		return nil, err
@@ -374,6 +387,15 @@ func (n *FSNodeOverDag) FileSize() uint64 {
 // node (internal nodes don't carry data, just file sizes).
 func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 	n.file.SetData(fileData)
+}
+
+func (n *FSNodeOverDag) SetFileMetaData(db *DagBuilderHelper) {
+	if !db.fileMtime.IsZero() {
+		n.file.SetMtime(db.fileMtime)
+	}
+	if db.fileMode != 0 {
+		n.file.SetMode(db.fileMode)
+	}
 }
 
 // GetDagNode fills out the proper formatting for the FSNodeOverDag node

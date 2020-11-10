@@ -317,7 +317,7 @@ func (n *FSNode) IsDir() bool {
 	}
 }
 
-func (n *FSNode) SetMtime(ts time.Time) {
+func (n *FSNode) SetModTime(ts time.Time) {
 	n.format.Mtime = &pb.IPFSTimestamp{
 		Seconds: proto.Int64(ts.Unix()),
 		Nanos:   proto.Uint32(uint32(ts.Nanosecond())),

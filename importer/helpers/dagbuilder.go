@@ -391,7 +391,7 @@ func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 
 func (n *FSNodeOverDag) SetFileMetaData(db *DagBuilderHelper) {
 	if !db.fileMtime.IsZero() {
-		n.file.SetMtime(db.fileMtime)
+		n.file.SetModTime(db.fileMtime)
 	}
 	if db.fileMode != 0 {
 		n.file.SetMode(db.fileMode)

@@ -361,7 +361,7 @@ func EmptyDirNode() *dag.ProtoNode {
 	return dag.NodeWithData(FolderPBData())
 }
 
-// EmptyDirNode creates an empty folder Protonode.
+// EmptyFileNode creates an empty file Protonode.
 func EmptyFileNode() *dag.ProtoNode {
 	return dag.NodeWithData(FilePBData(nil, 0))
 }

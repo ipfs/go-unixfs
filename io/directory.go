@@ -14,7 +14,7 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
-// UseHAMTSharding is a global option that allows switching to a HAMTDirectory
+// HAMTShardingSize is a global option that allows switching to a HAMTDirectory
 // when the BasicDirectory grows above the size (in bytes) signalled by this
 // flag. The default size of 0 disables the option.
 // The size is not the *exact* block size of the encoded BasicDirectory but just
@@ -108,10 +108,8 @@ func NewBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 	return basicDir
 }
 
-// NewDirectory returns a Directory that can either be a HAMTDirectory if the
-// UseHAMTSharding is set, or otherwise an UpgradeableDirectory containing a
-// BasicDirectory that can be converted to a HAMTDirectory if the option is
-// set in the future.
+// NewDirectory returns a Directory implemented by UpgradeableDirectory
+// containing a BasicDirectory that can be converted to a HAMTDirectory.
 func NewDirectory(dserv ipld.DAGService) Directory {
 	return &UpgradeableDirectory{NewEmptyBasicDirectory(dserv)}
 }

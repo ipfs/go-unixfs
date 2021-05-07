@@ -244,11 +244,9 @@ func (d *BasicDirectory) Find(ctx context.Context, name string) (ipld.Node, erro
 // RemoveChild implements the `Directory` interface.
 func (d *BasicDirectory) RemoveChild(ctx context.Context, name string) error {
 	// We need to *retrieve* the link before removing it to update the estimated
-	// size.
-	// FIXME: If this is too much of a potential penalty we could leave a fixed
-	//  CID size estimation based on the most common one used (normally SHA-256).
-	//  Alternatively we could add a GetAndRemoveLink method in `merkledag` to
-	//  iterate node links slice only once.
+	// size. This means we may iterate the links slice twice: if traversing this
+	// becomes a problem, a factor of 2 isn't going to make much of a difference.
+	// We'd likely need to cache a link resolution map in that case.
 	link, err := d.node.GetNodeLink(name)
 	if err == mdag.ErrLinkNotFound {
 		return os.ErrNotExist
@@ -378,11 +376,11 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 		return nil
 	}
 	if basicDir.estimatedSize >= HAMTShardingSize {
-		// FIXME: Ideally to minimize performance we should check if this last
-		//  `AddChild` call would bring the directory size over the threshold
-		//  *before* executing it since we would end up switching anyway and
-		//  that call would be "wasted". This is a minimal performance impact
-		//  and we prioritize a simple code base.
+		// Ideally to minimize performance we should check if this last
+		// `AddChild` call would bring the directory size over the threshold
+		// *before* executing it since we would end up switching anyway and
+		// that call would be "wasted". This is a minimal performance impact
+		// and we prioritize a simple code base.
 		hamtDir, err := basicDir.SwitchToSharding(ctx)
 		if err != nil {
 			return err

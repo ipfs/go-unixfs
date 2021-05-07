@@ -12,7 +12,10 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	logging "github.com/ipfs/go-log"
 )
+
+var log = logging.Logger("unixfs")
 
 // HAMTShardingSize is a global option that allows switching to a HAMTDirectory
 // when the BasicDirectory grows above the size (in bytes) signalled by this
@@ -101,10 +104,8 @@ func newBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 	basicDir.dserv = dserv
 
 	// Scan node links (if any) to restore estimated size.
-	basicDir.ForEachLink(nil, func(l *ipld.Link) error {
-		basicDir.addToEstimatedSize(l.Name, l.Cid)
-		return nil
-	})
+	basicDir.computeEstimatedSize()
+
 	return basicDir
 }
 
@@ -147,6 +148,13 @@ func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, err
 	return nil, ErrNotADir
 }
 
+func (d *BasicDirectory) computeEstimatedSize() {
+	d.ForEachLink(nil, func(l *ipld.Link) error {
+		d.addToEstimatedSize(l.Name, l.Cid)
+		return nil
+	})
+}
+
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
 	d.estimatedSize += len(name) + len(linkCid.Bytes())
 	// FIXME: Ideally we may want to track the Link size as well but it is
@@ -156,7 +164,10 @@ func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
 func (d *BasicDirectory) removeFromEstimatedSize(name string, linkCid cid.Cid) {
 	d.estimatedSize -= len(name) + len(linkCid.Bytes())
 	if d.estimatedSize < 0 {
-		panic("BasicDirectory's estimatedSize went below 0")
+		// Something has gone very wrong. Log an error and recompute the
+		// size from scratch.
+		log.Error("BasicDirectory's estimatedSize went below 0")
+		d.computeEstimatedSize()
 	}
 }
 

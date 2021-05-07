@@ -91,11 +91,11 @@ type HAMTDirectory struct {
 	dserv ipld.DAGService
 }
 
-func NewEmptyBasicDirectory(dserv ipld.DAGService) *BasicDirectory {
-	return NewBasicDirectoryFromNode(dserv, format.EmptyDirNode())
+func newEmptyBasicDirectory(dserv ipld.DAGService) *BasicDirectory {
+	return newBasicDirectoryFromNode(dserv, format.EmptyDirNode())
 }
 
-func NewBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *BasicDirectory {
+func newBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *BasicDirectory {
 	basicDir := new(BasicDirectory)
 	basicDir.node = node
 	basicDir.dserv = dserv
@@ -111,7 +111,7 @@ func NewBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 // NewDirectory returns a Directory implemented by UpgradeableDirectory
 // containing a BasicDirectory that can be converted to a HAMTDirectory.
 func NewDirectory(dserv ipld.DAGService) Directory {
-	return &UpgradeableDirectory{NewEmptyBasicDirectory(dserv)}
+	return &UpgradeableDirectory{newEmptyBasicDirectory(dserv)}
 }
 
 // ErrNotADir implies that the given node was not a unixfs directory
@@ -132,7 +132,7 @@ func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, err
 
 	switch fsNode.Type() {
 	case format.TDirectory:
-		return NewBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode)), nil
+		return newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode)), nil
 	case format.THAMTShard:
 		shard, err := hamt.NewHamtFromDag(dserv, node)
 		if err != nil {

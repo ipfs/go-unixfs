@@ -114,7 +114,7 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	basicDir := NewEmptyBasicDirectory(ds)
+	basicDir := newEmptyBasicDirectory(ds)
 
 	// Several overwrites should not corrupt the size estimation.
 	basicDir.AddChild(ctx, "child", child)
@@ -156,7 +156,7 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 
 	// Restore a directory from original's node and check estimated size consistency.
 	basicDirSingleNode, _ := basicDir.GetNode() // no possible error
-	restoredBasicDir := NewBasicDirectoryFromNode(ds, basicDirSingleNode.(*mdag.ProtoNode))
+	restoredBasicDir := newBasicDirectoryFromNode(ds, basicDirSingleNode.(*mdag.ProtoNode))
 	if basicDir.estimatedSize != restoredBasicDir.estimatedSize {
 		t.Fatalf("restored basic directory size (%d) doesn't match original estimate (%d)",
 			basicDir.estimatedSize, restoredBasicDir.estimatedSize)

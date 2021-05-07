@@ -3,11 +3,11 @@ package io
 import (
 	"context"
 	"fmt"
-	mdag "github.com/ipfs/go-merkledag"
 	"math"
 	"testing"
 
 	ipld "github.com/ipfs/go-ipld-format"
+	mdag "github.com/ipfs/go-merkledag"
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"

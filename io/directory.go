@@ -155,14 +155,18 @@ func (d *BasicDirectory) computeEstimatedSize() {
 	})
 }
 
+func estimatedLinkSize(linkName string, linkCid cid.Cid) int {
+	return len(linkName) + linkCid.ByteLen()
+}
+
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
-	d.estimatedSize += len(name) + len(linkCid.Bytes())
+	d.estimatedSize += estimatedLinkSize(name, linkCid)
 	// FIXME: Ideally we may want to track the Link size as well but it is
 	//  minor in comparison with the other two.
 }
 
 func (d *BasicDirectory) removeFromEstimatedSize(name string, linkCid cid.Cid) {
-	d.estimatedSize -= len(name) + len(linkCid.Bytes())
+	d.estimatedSize -= estimatedLinkSize(name, linkCid)
 	if d.estimatedSize < 0 {
 		// Something has gone very wrong. Log an error and recompute the
 		// size from scratch.

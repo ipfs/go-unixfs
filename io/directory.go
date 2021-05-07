@@ -80,10 +80,11 @@ type BasicDirectory struct {
 	node  *mdag.ProtoNode
 	dserv ipld.DAGService
 
-	// Internal variable used to cache the estimated size used for the
-	// HAMTShardingSize option. We maintain this value even if the
-	// HAMTShardingSize is off since potentially the option could be activated
-	// on the fly.
+	// Internal variable used to cache the estimated size of the basic directory:
+	// for each link, aggregate link name + link CID. DO NOT CHANGE THIS
+	// as it will affect the HAMT transition behavior in HAMTShardingSize.
+	// (We maintain this value up to date even if the HAMTShardingSize is off
+	// since potentially the option could be activated on the fly.)
 	estimatedSize int
 }
 
@@ -161,8 +162,6 @@ func estimatedLinkSize(linkName string, linkCid cid.Cid) int {
 
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
 	d.estimatedSize += estimatedLinkSize(name, linkCid)
-	// FIXME: Ideally we may want to track the Link size as well but it is
-	//  minor in comparison with the other two.
 }
 
 func (d *BasicDirectory) removeFromEstimatedSize(name string, linkCid cid.Cid) {

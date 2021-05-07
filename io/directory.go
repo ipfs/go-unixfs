@@ -179,10 +179,13 @@ func (d *BasicDirectory) SetCidBuilder(builder cid.Builder) {
 // AddChild implements the `Directory` interface. It adds (or replaces)
 // a link to the given `node` under `name`.
 func (d *BasicDirectory) AddChild(ctx context.Context, name string, node ipld.Node) error {
-	// Remove old link (if it existed), don't check a potential `ErrNotFound`.
-	d.RemoveChild(ctx, name)
+	// Remove old link (if it existed; ignore `ErrNotExist` otherwise).
+	err := d.RemoveChild(ctx, name)
+	if err != nil && err != os.ErrNotExist {
+		return err
+	}
 
-	err := d.node.AddNodeLink(name, node)
+	err = d.node.AddNodeLink(name, node)
 	if err != nil {
 		return err
 	}

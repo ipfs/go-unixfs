@@ -105,6 +105,8 @@ func TestDuplicateAddDir(t *testing.T) {
 //    restored node check from NewDirectoryFromNode).
 //  * Check estimated size against encoded node (the difference should only be
 //    a small percentage for a directory with 10s of entries).
+// FIXME: Add a test for the HAMT sizeChange abstracting some of the code from
+//  this one.
 func TestBasicDirectory_estimatedSize(t *testing.T) {
 	ds := mdtest.Mock()
 	ctx := context.Background()
@@ -210,6 +212,23 @@ func TestUpgradeableDirectory(t *testing.T) {
 	if _, ok := dir.(*UpgradeableDirectory).Directory.(*HAMTDirectory); !ok {
 		t.Fatal("UpgradeableDirectory wasn't upgraded to HAMTDirectory for a low threshold")
 	}
+
+	// Remove the single entry triggering the switch back to BasicDirectory
+	err = dir.RemoveChild(ctx, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// For performance reasons we only switch when serializing the data
+	// in the node format and not on any entry removal.
+	_, err = dir.GetNode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := dir.(*UpgradeableDirectory).Directory.(*BasicDirectory); !ok {
+		t.Fatal("UpgradeableDirectory wasn't downgraded to BasicDirectory after removal of the single entry")
+	}
+
+	// FIXME: Test integrity of entries in-between switches.
 }
 
 func TestDirBuilder(t *testing.T) {

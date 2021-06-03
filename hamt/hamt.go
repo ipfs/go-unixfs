@@ -369,6 +369,9 @@ func makeAsyncTrieGetLinks(dagService ipld.DAGService, linkResults chan<- format
 			lnk := links[idx]
 			lnkLinkType, err := directoryShard.childLinkType(lnk)
 
+			// THIS IS THE CODE THAT FETCHES FROM NETWORK AND DISCARDS IT.
+			// It uses the fetched node just to follow the DAG.
+
 			if err != nil {
 				return nil, err
 			}
@@ -634,6 +637,7 @@ func (s *childer) get(ctx context.Context, sliceIndex int) (*Shard, error) {
 	return s.loadChild(ctx, sliceIndex)
 }
 
+// THIS IS THE CODE THAT FETCHES FROM NETWORK AND STORES IT.
 // loadChild reads the i'th child node of this shard from disk and returns it
 // as a 'child' interface
 func (s *childer) loadChild(ctx context.Context, sliceIndex int) (*Shard, error) {

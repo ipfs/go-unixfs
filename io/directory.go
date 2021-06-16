@@ -28,6 +28,7 @@ var HAMTShardingSize = 0
 
 // Time in seconds allowed to fetch the shards to compute the size before
 // returning an error.
+// FIXME: Adjust to sane value.
 var EvaluateHAMTTransitionTimeout = time.Duration(1)
 
 // DefaultShardWidth is the default value used for hamt sharding width.
@@ -431,7 +432,7 @@ func (d *HAMTDirectory) sizeBelowThreshold(timeout time.Duration) (below bool, t
 	// end early if we already know we're above the threshold or run out of time.
 	partialSize := 0
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second * timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*timeout)
 	for linkResult := range d.EnumLinksAsync(ctx) {
 		if linkResult.Err != nil {
 			continue
@@ -529,55 +530,51 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	return nil
 }
 
-// FIXME: Consider implementing RemoveChild to do an eager enumeration if
-//  the HAMT sizeChange goes below a certain point (normally lower than just
-//  zero to not enumerate in *any* occasion the size delta goes transiently
-//  negative).
-//func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) error
-
-// GetNode implements the `Directory` interface. Used in the case where we wrap
+// RemoveChild implements the `Directory` interface. Used in the case where we wrap
 // a HAMTDirectory that might need to be downgraded to a BasicDirectory. The
-// upgrade path is in AddChild; we delay the downgrade until we are forced to
-// commit to a CID (through the returned node) to avoid costly enumeration in
-// the sharding case (that by definition will have potentially many more entries
-// than the BasicDirectory).
-// FIXME: We need to be *very* sure that the returned downgraded BasicDirectory
-//  will be in fact *above* the HAMTShardingSize threshold to avoid churning.
-//  We may even need to use a basic low/high water markings (like a small
-//  percentage above and below the original user-set HAMTShardingSize).
-func (d *UpgradeableDirectory) GetNode() (ipld.Node, error) {
+// upgrade path is in AddChild.
+// FIXME: Consider adding some margin in the comparison against HAMTShardingSize
+//  to avoid an eager enumeration at the first opportunity we go below it
+//  (in which case we would have the hard comparison in GetNode() to make
+//  sure we make good on the value). Finding the right margin can be tricky
+//  and very dependent on the use case so it might not be worth it.
+func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) error {
+	if err := d.Directory.RemoveChild(ctx, name); err != nil {
+		return err
+	}
+
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
-	if !ok {
-		return d.Directory.GetNode() // BasicDirectory
+	if !ok { // BasicDirectory
+		return nil
 	}
 
 	if HAMTShardingSize == 0 && // Option disabled.
-		hamtDir.sizeChange < 0 { // We haven't reduced the HAMT size.
-		return d.Directory.GetNode()
+		hamtDir.sizeChange < 0 { // We haven't reduced the HAMT net size.
+		return nil
 	}
 
 	// We have reduced the directory size, check if it didn't go under
 	// the HAMTShardingSize threshold.
-
 	belowThreshold, timeoutExceeded := hamtDir.sizeBelowThreshold(EvaluateHAMTTransitionTimeout)
 
 	if timeoutExceeded {
 		// We run out of time before confirming if we're indeed below the
 		// threshold. When in doubt error to not return inconsistent structures.
-		return nil, fmt.Errorf("not enought time to fetch shards")
+		// FIXME: We could allow this to return without error and enforce this
+		//  timeout on a GetNode() call when we need to actually commit to a
+		//  structure/CID. (The downside is that GetNode() doesn't have a
+		//  context argument and we would have to break the API.)
+		return fmt.Errorf("not enought time to fetch shards")
 		// FIXME: Abstract in new error for testing.
 	}
 
-	if belowThreshold {
-		// Switch.
-		basicDir, err := hamtDir.switchToBasic(context.Background())
-		// FIXME: The missing context will be provided once we move this to
-		//  AddChild and remove child.
+	if belowThreshold { // Switch.
+		basicDir, err := hamtDir.switchToBasic(ctx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		d.Directory = basicDir
 	}
 
-	return d.Directory.GetNode()
+	return nil
 }

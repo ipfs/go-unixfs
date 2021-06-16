@@ -26,8 +26,8 @@ var log = logging.Logger("unixfs")
 // ProtoNode doesn't use the Data field so this estimate is pretty accurate).
 var HAMTShardingSize = 0
 
-// Time allowed to fetch the shards to compute the size before returning
-// an error.
+// Time in seconds allowed to fetch the shards to compute the size before
+// returning an error.
 var EvaluateHAMTTransitionTimeout = time.Duration(1)
 
 // DefaultShardWidth is the default value used for hamt sharding width.
@@ -431,7 +431,7 @@ func (d *HAMTDirectory) sizeBelowThreshold(timeout time.Duration) (below bool, t
 	// end early if we already know we're above the threshold or run out of time.
 	partialSize := 0
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * timeout)
 	for linkResult := range d.EnumLinksAsync(ctx) {
 		if linkResult.Err != nil {
 			continue

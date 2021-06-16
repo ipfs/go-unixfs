@@ -379,7 +379,7 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 	basicDir := newEmptyBasicDirectory(d.dserv)
 	basicDir.SetCidBuilder(d.GetCidBuilder())
 
-	d.ForEachLink(nil, func(lnk *ipld.Link) error {
+	d.ForEachLink(context.TODO(), func(lnk *ipld.Link) error {
 		node, err := d.dserv.Get(ctx, lnk.Cid)
 		if err != nil {
 			return err

@@ -433,6 +433,7 @@ func (d *HAMTDirectory) sizeBelowThreshold(timeout time.Duration) (below bool, t
 	partialSize := 0
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*timeout)
+	defer cancel()
 	for linkResult := range d.EnumLinksAsync(ctx) {
 		if linkResult.Err != nil {
 			continue
@@ -455,7 +456,6 @@ func (d *HAMTDirectory) sizeBelowThreshold(timeout time.Duration) (below bool, t
 		if partialSize >= HAMTShardingSize {
 			// We have already fetched enough shards to assert we are
 			//  above the threshold, so no need to keep fetching.
-			cancel()
 			return false, false
 		}
 	}

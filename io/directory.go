@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	mdag "github.com/ipfs/go-merkledag"
 
@@ -24,6 +25,10 @@ var log = logging.Logger("unixfs")
 // the estimated size based byte length of links name and CID (BasicDirectory's
 // ProtoNode doesn't use the Data field so this estimate is pretty accurate).
 var HAMTShardingSize = 0
+
+// Time allowed to fetch the shards to compute the size before returning
+// an error.
+var EvaluateHAMTTransitionTimeout = time.Duration(1)
 
 // DefaultShardWidth is the default value used for hamt sharding width.
 var DefaultShardWidth = 256
@@ -409,6 +414,76 @@ func (d *HAMTDirectory) removeFromSizeChange(name string, linkCid cid.Cid) {
 	d.sizeChange -= estimatedLinkSize(name, linkCid)
 }
 
+// Evaluate directory size and check if it's below HAMTShardingSize threshold
+// (to trigger a transition to a BasicDirectory). It returns two `bool`s:
+// * whether it's below (true) or equal/above (false)
+// * whether the passed timeout to compute the size has been exceeded
+// Instead of enumearting the entire tree we eagerly call EnumLinksAsync
+// until we either reach a value above the threshold (in that case no need)
+// to keep counting or the timeout runs out in which case the `below` return
+// value is not to be trusted as we didn't have time to count enough shards.
+func (d *HAMTDirectory) sizeBelowThreshold(timeout time.Duration) (below bool, timeoutExceeded bool) {
+	if HAMTShardingSize == 0 {
+		panic("asked to compute HAMT size with HAMTShardingSize option off (0)")
+	}
+
+	// We don't necessarily compute the full size of *all* shards as we might
+	// end early if we already know we're above the threshold or run out of time.
+	partialSize := 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	for linkResult := range d.EnumLinksAsync(ctx) {
+		if linkResult.Err != nil {
+			continue
+			// The timeout exceeded errors will be coming through here but I'm
+			// not sure if we can just compare against a generic DeadlineExceeded
+			// error here to return early and avoid iterating the entire loop.
+			// (We might confuse a specific DeadlineExceeded of an internal function
+			//  with our context here.)
+			// Since *our* DeadlineExceeded will quickly propagate to any other
+			// pending fetches it seems that iterating the entire loop won't add
+			// much more cost anyway.
+			// FIXME: Check the above reasoning.
+		}
+		if linkResult.Link == nil {
+			panic("empty link result (both values nil)")
+			// FIXME: Is this *ever* possible?
+		}
+		partialSize += estimatedLinkSize(linkResult.Link.Name, linkResult.Link.Cid)
+
+		if partialSize >= HAMTShardingSize {
+			// We have already fetched enough shards to assert we are
+			//  above the threshold, so no need to keep fetching.
+			cancel()
+			return false, false
+		}
+	}
+	// At this point either we enumerated all shards or run out of time.
+	// Figure out which.
+
+	if ctx.Err() == context.Canceled {
+		panic("the context was canceled but we're still evaluating a possible switch")
+	}
+	if partialSize >= HAMTShardingSize {
+		panic("we reach the threshold but we're still evaluating a possible switch")
+	}
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return false, true
+	}
+
+	// If we reach this then:
+	// * We are below the threshold (we didn't return inside the EnumLinksAsync
+	//   loop).
+	// * The context wasn't cancelled so we iterated *all* shards
+	//   and are sure that we have the full size.
+	// FIXME: Can we actually verify the last claim here to be sure?
+	//  (Iterating all the shards in the HAMT as a plumbing function maybe.
+	//   If they're in memory it shouldn't be that expensive, we won't be
+	//   switching that often, probably.)
+	return true, false
+}
+
 // UpgradeableDirectory wraps a Directory interface and provides extra logic
 // to upgrade from its BasicDirectory implementation to HAMTDirectory.
 // FIXME: Rename to something that reflects the new bi-directionality. We no
@@ -476,28 +551,32 @@ func (d *UpgradeableDirectory) GetNode() (ipld.Node, error) {
 		return d.Directory.GetNode() // BasicDirectory
 	}
 
-	if HAMTShardingSize != 0 && hamtDir.sizeChange < 0 {
-		// We have reduced the directory size, check if it didn't go under
-		// the HAMTShardingSize threshold.
-		// FIXME: We should do a partial enumeration instead of the full one
-		//  enumerating until we reach HAMTShardingSize (or we run out of
-		//  entries meaning we need to switch).
-		totalSize := 0
-		ctx := context.Background()
-		// FIXME: We will need a context for this closure to make sure
-		//  we don't stall here. This might mean changing the current
-		//  Directory interface.
-		hamtDir.ForEachLink(ctx, func(l *ipld.Link) error {
-			totalSize += estimatedLinkSize(l.Name, l.Cid)
-			return nil
-		})
-		if totalSize < HAMTShardingSize {
-			basicDir, err := hamtDir.switchToBasic(ctx)
-			if err != nil {
-				return nil, err
-			}
-			d.Directory = basicDir
+	if HAMTShardingSize == 0 && // Option disabled.
+		hamtDir.sizeChange < 0 { // We haven't reduced the HAMT size.
+		return d.Directory.GetNode()
+	}
+
+	// We have reduced the directory size, check if it didn't go under
+	// the HAMTShardingSize threshold.
+
+	belowThreshold, timeoutExceeded := hamtDir.sizeBelowThreshold(EvaluateHAMTTransitionTimeout)
+
+	if timeoutExceeded {
+		// We run out of time before confirming if we're indeed below the
+		// threshold. When in doubt error to not return inconsistent structures.
+		return nil, fmt.Errorf("not enought time to fetch shards")
+		// FIXME: Abstract in new error for testing.
+	}
+
+	if belowThreshold {
+		// Switch.
+		basicDir, err := hamtDir.switchToBasic(context.Background())
+		// FIXME: The missing context will be provided once we move this to
+		//  AddChild and remove child.
+		if err != nil {
+			return nil, err
 		}
+		d.Directory = basicDir
 	}
 
 	return d.Directory.GetNode()

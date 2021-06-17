@@ -206,14 +206,14 @@ func (ds *Shard) makeShardValue(lnk *ipld.Link) (*Shard, error) {
 
 // Set sets 'name' = nd in the HAMT
 func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
-	_, err := ds.setAndPrevious(ctx, name, nd)
+	_, err := ds.SetAndPrevious(ctx, name, nd)
 	return err
 }
 
-// setAndPrevious sets a link poiting to the passed node as the value under the
+// SetAndPrevious sets a link poiting to the passed node as the value under the
 // name key in this Shard or its children. It also returns the previous link
 // under that name key (if any).
-func (ds *Shard) setAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
+func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
 	hv := &hashBits{b: hash([]byte(name))}
 	err := ds.dserv.Add(ctx, node)
 	if err != nil {
@@ -232,13 +232,13 @@ func (ds *Shard) setAndPrevious(ctx context.Context, name string, node ipld.Node
 // Remove deletes the named entry if it exists. Otherwise, it returns
 // os.ErrNotExist.
 func (ds *Shard) Remove(ctx context.Context, name string) error {
-	_, err := ds.removeAndPrevious(ctx, name)
+	_, err := ds.RemoveAndPrevious(ctx, name)
 	return err
 }
 
-// removeAndPrevious is similar to the public Remove but also returns the
+// RemoveAndPrevious is similar to the public Remove but also returns the
 // old removed link (if it exists).
-func (ds *Shard) removeAndPrevious(ctx context.Context, name string) (*ipld.Link, error) {
+func (ds *Shard) RemoveAndPrevious(ctx context.Context, name string) (*ipld.Link, error) {
 	hv := &hashBits{b: hash([]byte(name))}
 	return ds.setValue(ctx, hv, name, nil)
 }

@@ -321,12 +321,20 @@ func (d *HAMTDirectory) SetCidBuilder(builder cid.Builder) {
 
 // AddChild implements the `Directory` interface.
 func (d *HAMTDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
-	// FIXME: This needs to be moved to Shard internals to make sure we are
-	//  actually adding a new entry (increasing size) or just replacing an
-	//  old one (do nothing, or get a difference in entry size).
-	d.addToSizeChange(name, nd.Cid())
 
-	return d.shard.Set(ctx, name, nd)
+	oldChild, err := d.shard.SetAndPrevious(ctx, name, nd)
+	if err != nil {
+		// FIXME: We don't know if SetAndPrevious failed before removing the
+		//  old entry or not (it certainly failed before *adding* it, right?).
+		//  We should check this.
+		return err
+	}
+
+	if oldChild != nil {
+		d.removeFromSizeChange(oldChild.Name, oldChild.Cid)
+	}
+	d.addToSizeChange(name, nd.Cid())
+	return nil
 }
 
 // ForEachLink implements the `Directory` interface.
@@ -357,11 +365,16 @@ func (d *HAMTDirectory) Find(ctx context.Context, name string) (ipld.Node, error
 
 // RemoveChild implements the `Directory` interface.
 func (d *HAMTDirectory) RemoveChild(ctx context.Context, name string) error {
-	// FIXME: Same note as in AddChild, with the added consideration that
-	//  we need to retrieve the entry before removing to adjust size.
-	d.removeFromSizeChange(name, cid.Undef)
+	oldChild, err := d.shard.RemoveAndPrevious(ctx, name)
+	if err != nil {
+		return err
+	}
 
-	return d.shard.Remove(ctx, name)
+	if oldChild != nil {
+		d.removeFromSizeChange(oldChild.Name, oldChild.Cid)
+	}
+
+	return nil
 }
 
 // GetNode implements the `Directory` interface.

@@ -85,6 +85,7 @@ type Directory interface {
 func productionLinkSize(linkName string, linkCid cid.Cid) int {
 	return len(linkName) + linkCid.ByteLen()
 }
+
 var estimatedLinkSize = productionLinkSize
 
 // BasicDirectory is the basic implementation of `Directory`. All the entries

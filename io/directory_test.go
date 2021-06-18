@@ -169,6 +169,7 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 			basicDir.estimatedSize, restoredBasicDir.estimatedSize)
 	}
 }
+
 // FIXME: Add a similar one for HAMT directory, stressing particularly the
 //  deleted/overwritten entries and their computation in the size variation.
 

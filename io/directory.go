@@ -80,6 +80,13 @@ type Directory interface {
 // TODO: Evaluate removing `dserv` from this layer and providing it in MFS.
 // (The functions should in that case add a `DAGService` argument.)
 
+// Link size estimation function. For production it's usually the one here
+// but during test we may mock it to get fixed sizes.
+func productionLinkSize(linkName string, linkCid cid.Cid) int {
+	return len(linkName) + linkCid.ByteLen()
+}
+var estimatedLinkSize = productionLinkSize
+
 // BasicDirectory is the basic implementation of `Directory`. All the entries
 // are stored in a single node.
 type BasicDirectory struct {
@@ -146,6 +153,7 @@ func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, err
 	case format.TDirectory:
 		return &UpgradeableDirectory{newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode))}, nil
 	case format.THAMTShard:
+		// FIXME: We now need to return also the UpgradeableDirectory here.
 		shard, err := hamt.NewHamtFromDag(dserv, node)
 		if err != nil {
 			return nil, err
@@ -165,10 +173,6 @@ func (d *BasicDirectory) computeEstimatedSize() {
 		d.addToEstimatedSize(l.Name, l.Cid)
 		return nil
 	})
-}
-
-func estimatedLinkSize(linkName string, linkCid cid.Cid) int {
-	return len(linkName) + linkCid.ByteLen()
 }
 
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
@@ -541,6 +545,17 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	}
 
 	return nil
+}
+
+func (d *UpgradeableDirectory) getDagService() ipld.DAGService {
+	switch v := d.Directory.(type) {
+	case *BasicDirectory:
+		return v.dserv
+	case *HAMTDirectory:
+		return v.dserv
+	default:
+		panic("unknown directory type")
+	}
 }
 
 // RemoveChild implements the `Directory` interface. Used in the case where we wrap

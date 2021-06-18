@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 	"testing"
 
+	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	mdag "github.com/ipfs/go-merkledag"
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEmptyNode(t *testing.T) {
@@ -164,6 +169,14 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 			basicDir.estimatedSize, restoredBasicDir.estimatedSize)
 	}
 }
+// FIXME: Add a similar one for HAMT directory, stressing particularly the
+//  deleted/overwritten entries and their computation in the size variation.
+
+func mockLinkSizeFunc(fixedSize int) func(linkName string, linkCid cid.Cid) int {
+	return func(_ string, _ cid.Cid) int {
+		return fixedSize
+	}
+}
 
 // Basic test on extreme threshold to trigger switch. More fine-grained sizes
 // are checked in TestBasicDirectory_estimatedSize (without the swtich itself
@@ -172,8 +185,12 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 //  upgrade on another a better structured test should test both dimensions
 //  simultaneously.
 func TestUpgradeableDirectory(t *testing.T) {
+	// FIXME: Modifying these static configuraitons is probably not
+	//  concurrent-friendly.
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
+	estimatedLinkSize = mockLinkSizeFunc(1)
+	defer func() { estimatedLinkSize = productionLinkSize }()
 
 	ds := mdtest.Mock()
 	dir := NewDirectory(ds)
@@ -212,15 +229,10 @@ func TestUpgradeableDirectory(t *testing.T) {
 	if _, ok := dir.(*UpgradeableDirectory).Directory.(*HAMTDirectory); !ok {
 		t.Fatal("UpgradeableDirectory wasn't upgraded to HAMTDirectory for a low threshold")
 	}
+	upgradedDir := copyDir(t, dir)
 
 	// Remove the single entry triggering the switch back to BasicDirectory
 	err = dir.RemoveChild(ctx, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// For performance reasons we only switch when serializing the data
-	// in the node format and not on any entry removal.
-	_, err = dir.GetNode()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +240,68 @@ func TestUpgradeableDirectory(t *testing.T) {
 		t.Fatal("UpgradeableDirectory wasn't downgraded to BasicDirectory after removal of the single entry")
 	}
 
-	// FIXME: Test integrity of entries in-between switches.
+	// Check integrity between switches.
+	// We need to account for the removed entry that triggered the switch
+	// back.
+	// FIXME: Abstract this for arbitrary entries.
+	missingLink, err := ipld.MakeLink(child)
+	assert.NoError(t, err)
+	missingLink.Name = "test"
+	compareDirectoryEntries(t, upgradedDir, dir, []*ipld.Link{missingLink})
+}
+
+// Compare entries in the leftDir against the rightDir and possibly
+// missingEntries in the second.
+func compareDirectoryEntries(t *testing.T, leftDir Directory, rightDir Directory, missingEntries []*ipld.Link) {
+	leftLinks, err := getAllLinksSortedByName(leftDir)
+	assert.NoError(t, err)
+	rightLinks, err := getAllLinksSortedByName(rightDir)
+	assert.NoError(t, err)
+	rightLinks = append(rightLinks, missingEntries...)
+	sortLinksByName(rightLinks)
+
+	assert.Equal(t, len(leftLinks), len(rightLinks))
+
+	for i, leftLink := range leftLinks {
+		assert.Equal(t, leftLink, rightLinks[i]) // FIXME: Can we just compare the entire struct?
+	}
+}
+
+func getAllLinksSortedByName(d Directory) ([]*ipld.Link, error) {
+	entries, err := d.Links(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	sortLinksByName(entries)
+	return entries, nil
+}
+
+func sortLinksByName(l []*ipld.Link) {
+	sort.SliceStable(l, func(i, j int) bool {
+		return strings.Compare(l[i].Name, l[j].Name) == -1 // FIXME: Is this correct?
+	})
+}
+
+func copyDir(t *testing.T, d Directory) Directory {
+	dirNode, err := d.GetNode()
+	assert.NoError(t, err)
+	// Extract the DAG service from the directory (i.e., its link entries saved
+	// in it). This is not exposed in the interface and we won't change that now.
+	// FIXME: Still, this isn't nice.
+	var ds ipld.DAGService
+	switch v := d.(type) {
+	case *BasicDirectory:
+		ds = v.dserv
+	case *HAMTDirectory:
+		ds = v.dserv
+	case *UpgradeableDirectory:
+		ds = v.getDagService()
+	default:
+		panic("unknown directory type")
+	}
+	copiedDir, err := NewDirectoryFromNode(ds, dirNode)
+	assert.NoError(t, err)
+	return copiedDir
 }
 
 func TestDirBuilder(t *testing.T) {

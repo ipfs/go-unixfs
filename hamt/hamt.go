@@ -502,6 +502,11 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// (which will be nil) to highlight there is no overwrite here: they are
 		// done with different keys to a new (empty) shard. (At best this shard
 		// will create new ones until we find different slots for both.)
+		// FIXME: These two shouldn't be recursive calls where one function
+		//  adds the child and the other replaces it with a shard to go one
+		//  level deeper. This should just be a simple loop that traverses the
+		//  shared prefix in the key adding as many shards as needed and finally
+		//  inserts both leaf links together.
 		_, err = child.setValue(ctx, hv, key, value)
 		if err != nil {
 			return

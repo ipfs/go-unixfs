@@ -577,8 +577,8 @@ func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) err
 		return nil
 	}
 
-	if HAMTShardingSize == 0 && // Option disabled.
-		hamtDir.sizeChange < 0 { // We haven't reduced the HAMT net size.
+	if HAMTShardingSize == 0 || // Option disabled.
+		hamtDir.sizeChange >= 0 { // We haven't reduced the HAMT net size.
 		return nil
 	}
 

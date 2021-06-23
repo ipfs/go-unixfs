@@ -24,6 +24,7 @@ var log = logging.Logger("unixfs")
 var HAMTShardingSize = 0
 
 // DefaultShardWidth is the default value used for hamt sharding width.
+// Needs to be a power of two (shard entry size) and multiple of 8 (bitfield size).
 var DefaultShardWidth = 256
 
 // Directory defines a UnixFS directory. It is used for creating, reading and
@@ -73,7 +74,7 @@ type Directory interface {
 // (The functions should in that case add a `DAGService` argument.)
 
 // Link size estimation function. For production it's usually the one here
-// but during test we may mock it to get fixed sizes.
+// but during test we may mock it to Get fixed sizes.
 func productionLinkSize(linkName string, linkCid cid.Cid) int {
 	return len(linkName) + linkCid.ByteLen()
 }
@@ -103,6 +104,29 @@ type HAMTDirectory struct {
 	// Track the changes in size by the AddChild and RemoveChild calls
 	// for the HAMTShardingSize option.
 	sizeChange int
+}
+
+func newHAMTDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (*HAMTDirectory, error) {
+	shard, err := hamt.NewHamtFromDag(dserv, node)
+	if err != nil {
+		return nil, err
+	}
+	return &HAMTDirectory{
+		dserv: dserv,
+		shard: shard,
+	}, nil
+}
+
+func newEmptyHAMTDirectory(dserv ipld.DAGService) (*HAMTDirectory, error) {
+	shard, err := hamt.NewShard(dserv, DefaultShardWidth)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HAMTDirectory{
+		dserv: dserv,
+		shard: shard,
+	}, nil
 }
 
 func newEmptyBasicDirectory(dserv ipld.DAGService) *BasicDirectory {

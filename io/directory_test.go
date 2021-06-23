@@ -3,9 +3,12 @@ package io
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-unixfs/hamt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	cid "github.com/ipfs/go-cid"
@@ -105,161 +108,252 @@ func TestDuplicateAddDir(t *testing.T) {
 	}
 }
 
-// FIXME: Nothing blocking but nice to have:
-//  * Check estimated size against link enumeration (indirectly done in the
-//    restored node check from NewDirectoryFromNode).
-//  * Check estimated size against encoded node (the difference should only be
-//    a small percentage for a directory with 10s of entries).
-// FIXME: Add a test for the HAMT sizeChange abstracting some of the code from
-//  this one.
 func TestBasicDirectory_estimatedSize(t *testing.T) {
 	ds := mdtest.Mock()
-	ctx := context.Background()
-	child := ft.EmptyFileNode()
-	err := ds.Add(ctx, child)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	basicDir := newEmptyBasicDirectory(ds)
 
-	// Several overwrites should not corrupt the size estimation.
-	basicDir.AddChild(ctx, "child", child)
-	basicDir.AddChild(ctx, "child", child)
-	basicDir.AddChild(ctx, "child", child)
-	basicDir.RemoveChild(ctx, "child")
-	basicDir.AddChild(ctx, "child", child)
-	basicDir.RemoveChild(ctx, "child")
-	// FIXME: Check errors above (abstract adds/removals in iteration).
-	if basicDir.estimatedSize != 0 {
-		t.Fatal("estimated size is not zero after removing all entries")
-	}
-
-	for i := 0; i < 100; i++ {
-		basicDir.AddChild(ctx, fmt.Sprintf("child-%03d", i), child) // e.g., "child-045"
-	}
-	// Estimated entry size: name (9) + CID (32 from hash and 2 extra for header)
-	entrySize := 9 + 32 + 2
-	expectedSize := 100 * entrySize
-	if basicDir.estimatedSize != expectedSize {
-		t.Fatalf("estimated size (%d) inaccurate after adding many entries (expected %d)",
-			basicDir.estimatedSize, expectedSize)
-	}
-
-	basicDir.RemoveChild(ctx, "child-045") // just random values
-	basicDir.RemoveChild(ctx, "child-063")
-	basicDir.RemoveChild(ctx, "child-011")
-	basicDir.RemoveChild(ctx, "child-000")
-	basicDir.RemoveChild(ctx, "child-099")
-
-	basicDir.RemoveChild(ctx, "child-045")        // already removed, won't impact size
-	basicDir.RemoveChild(ctx, "nonexistent-name") // also doesn't count
-	basicDir.RemoveChild(ctx, "child-100")        // same
-	expectedSize -= 5 * entrySize
-	if basicDir.estimatedSize != expectedSize {
-		t.Fatalf("estimated size (%d) inaccurate after removing some entries (expected %d)",
-			basicDir.estimatedSize, expectedSize)
-	}
-
-	// Restore a directory from original's node and check estimated size consistency.
-	basicDirSingleNode, _ := basicDir.GetNode() // no possible error
-	restoredBasicDir := newBasicDirectoryFromNode(ds, basicDirSingleNode.(*mdag.ProtoNode))
-	if basicDir.estimatedSize != restoredBasicDir.estimatedSize {
-		t.Fatalf("restored basic directory size (%d) doesn't match original estimate (%d)",
-			basicDir.estimatedSize, restoredBasicDir.estimatedSize)
-	}
+	testDirectorySizeEstimation(t, basicDir, ds, func(dir Directory) int {
+		return dir.(*BasicDirectory).estimatedSize
+	})
 }
 
-// FIXME: Add a similar one for HAMT directory, stressing particularly the
-//  deleted/overwritten entries and their computation in the size variation.
+func TestHAMTDirectory_sizeChange(t *testing.T) {
+	ds := mdtest.Mock()
+	hamtDir, err := newEmptyHAMTDirectory(ds)
+	assert.NoError(t, err)
 
+	testDirectorySizeEstimation(t, hamtDir, ds, func(dir Directory) int {
+		// Since we created a HAMTDirectory from scratch with size 0 its
+		// internal sizeChange delta will in fact track the directory size
+		// throughout this run.
+		return dir.(*HAMTDirectory).sizeChange
+	})
+}
+
+func fullSizeEnumeration(dir Directory) int {
+	size := 0
+	dir.ForEachLink(context.Background(), func(l *ipld.Link) error {
+		size += estimatedLinkSize(l.Name, l.Cid)
+		return nil
+	})
+	return size
+}
+
+func testDirectorySizeEstimation(t *testing.T, dir Directory, ds ipld.DAGService, size func(Directory) int) {
+	estimatedLinkSize = mockLinkSizeFunc(1)
+	defer func() { estimatedLinkSize = productionLinkSize }()
+
+	ctx := context.Background()
+	child := ft.EmptyFileNode()
+	assert.NoError(t, ds.Add(ctx, child))
+
+	// Several overwrites should not corrupt the size estimation.
+	assert.NoError(t, dir.AddChild(ctx, "child", child))
+	assert.NoError(t, dir.AddChild(ctx, "child", child))
+	assert.NoError(t, dir.AddChild(ctx, "child", child))
+	assert.NoError(t, dir.RemoveChild(ctx, "child"))
+	assert.NoError(t, dir.AddChild(ctx, "child", child))
+	assert.NoError(t, dir.RemoveChild(ctx, "child"))
+	assert.Equal(t, 0, size(dir), "estimated size is not zero after removing all entries")
+
+	dirEntries := 100
+	for i := 0; i < dirEntries; i++ {
+		assert.NoError(t, dir.AddChild(ctx, fmt.Sprintf("child-%03d", i), child))
+	}
+	assert.Equal(t, dirEntries, size(dir), "estimated size inaccurate after adding many entries")
+
+	assert.NoError(t, dir.RemoveChild(ctx, "child-045")) // just random values
+	assert.NoError(t, dir.RemoveChild(ctx, "child-063"))
+	assert.NoError(t, dir.RemoveChild(ctx, "child-011"))
+	assert.NoError(t, dir.RemoveChild(ctx, "child-000"))
+	assert.NoError(t, dir.RemoveChild(ctx, "child-099"))
+	dirEntries -= 5
+	assert.Equal(t, dirEntries, size(dir), "estimated size inaccurate after removing some entries")
+
+	// All of the following remove operations will fail (won't impact dirEntries):
+	assert.Error(t, dir.RemoveChild(ctx, "nonexistent-name"))
+	assert.Error(t, dir.RemoveChild(ctx, "child-045")) // already removed
+	assert.Error(t, dir.RemoveChild(ctx, "child-100"))
+	assert.Equal(t, dirEntries, size(dir), "estimated size inaccurate after failed remove attempts")
+
+	// Restore a directory from original's node and check estimated size consistency.
+	dirNode, err := dir.GetNode()
+	assert.NoError(t, err)
+	restoredDir,err := NewDirectoryFromNode(ds, dirNode.(*mdag.ProtoNode))
+	assert.NoError(t, err)
+	assert.Equal(t, size(dir), fullSizeEnumeration(restoredDir), "restored directory's size doesn't match original's")
+	// We don't use the estimation size function for the restored directory
+	// because in the HAMT case this function depends on the sizeChange variable
+	// that will be cleared when loading the directory from the node.
+	// This also covers the case of comparing the size estimation `size()` with
+	// the full enumeration function `fullSizeEnumeration()` to make sure it's
+	// correct.
+}
+
+// Any entry link size will have the fixedSize passed.
 func mockLinkSizeFunc(fixedSize int) func(linkName string, linkCid cid.Cid) int {
 	return func(_ string, _ cid.Cid) int {
 		return fixedSize
 	}
 }
 
-// Basic test on extreme threshold to trigger switch. More fine-grained sizes
-// are checked in TestBasicDirectory_estimatedSize (without the swtich itself
-// but focusing on the size computation).
-// FIXME: Ideally, instead of checking size computation on one test and directory
-//  upgrade on another a better structured test should test both dimensions
-//  simultaneously.
-func TestUpgradeableDirectory(t *testing.T) {
-	// FIXME: Modifying these static configuraitons is probably not
-	//  concurrent-friendly.
+func checkBasicDirectory(t *testing.T, dir Directory, errorMessage string) {
+	if _, ok := dir.(*UpgradeableDirectory).Directory.(*BasicDirectory); !ok {
+		t.Fatal(errorMessage)
+	}
+}
+
+func checkHAMTDirectory(t *testing.T, dir Directory, errorMessage string) {
+	if _, ok := dir.(*UpgradeableDirectory).Directory.(*HAMTDirectory); !ok {
+		t.Fatal(errorMessage)
+	}
+}
+
+// Test HAMTDirectory <-> BasicDirectory switch based on directory size. The
+// switch is managed by the UpgradeableDirectory abstraction.
+func TestUpgradeableDirectorySwitch(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
+	HAMTShardingSize = 0 // Disable automatic switch at the start.
 	estimatedLinkSize = mockLinkSizeFunc(1)
 	defer func() { estimatedLinkSize = productionLinkSize }()
 
 	ds := mdtest.Mock()
 	dir := NewDirectory(ds)
+	checkBasicDirectory(t, dir, "new dir is not BasicDirectory")
+
 	ctx := context.Background()
 	child := ft.EmptyDirNode()
 	err := ds.Add(ctx, child)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
-	HAMTShardingSize = 0 // Create a BasicDirectory.
-	if _, ok := dir.(*UpgradeableDirectory).Directory.(*BasicDirectory); !ok {
-		t.Fatal("UpgradeableDirectory doesn't contain BasicDirectory")
-	}
+	err = dir.AddChild(ctx, "1", child)
+	assert.NoError(t, err)
+	checkBasicDirectory(t, dir, "added child, option still disabled")
 
 	// Set a threshold so big a new entry won't trigger the change.
 	HAMTShardingSize = math.MaxInt32
 
-	err = dir.AddChild(ctx, "test", child)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, ok := dir.(*UpgradeableDirectory).Directory.(*HAMTDirectory); ok {
-		t.Fatal("UpgradeableDirectory was upgraded to HAMTDirectory for a large threshold")
-	}
+	err = dir.AddChild(ctx, "2", child)
+	assert.NoError(t, err)
+	checkBasicDirectory(t, dir, "added child, option now enabled but at max")
 
 	// Now set it so low to make sure any new entry will trigger the upgrade.
 	HAMTShardingSize = 1
 
-	err = dir.AddChild(ctx, "test", child) // overwriting an entry should also trigger the switch
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, ok := dir.(*UpgradeableDirectory).Directory.(*HAMTDirectory); !ok {
-		t.Fatal("UpgradeableDirectory wasn't upgraded to HAMTDirectory for a low threshold")
-	}
-	upgradedDir := copyDir(t, dir)
-
-	// Remove the single entry triggering the switch back to BasicDirectory
-	err = dir.RemoveChild(ctx, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := dir.(*UpgradeableDirectory).Directory.(*BasicDirectory); !ok {
-		t.Fatal("UpgradeableDirectory wasn't downgraded to BasicDirectory after removal of the single entry")
-	}
-
-	// Check integrity between switches.
-	// We need to account for the removed entry that triggered the switch
-	// back.
-	// FIXME: Abstract this for arbitrary entries.
-	missingLink, err := ipld.MakeLink(child)
+	// We are already above the threshold, we trigger the switch with an overwrite
+	// (any AddChild() should reevaluate the size).
+	err = dir.AddChild(ctx, "2", child)
 	assert.NoError(t, err)
-	missingLink.Name = "test"
-	compareDirectoryEntries(t, upgradedDir, dir, []*ipld.Link{missingLink})
+	checkHAMTDirectory(t, dir, "added child, option at min, should switch up")
+
+	// Set threshold at the number of current entries and delete the last one
+	// to trigger a switch and evaluate if the rest of the entries are conserved.
+	HAMTShardingSize = 2
+	err = dir.RemoveChild(ctx, "2")
+	assert.NoError(t, err)
+	checkBasicDirectory(t, dir, "removed threshold entry, option at min, should switch down")
+}
+
+func TestIntegrityOfDirectorySwitch(t *testing.T) {
+	ds := mdtest.Mock()
+	dir := NewDirectory(ds)
+	checkBasicDirectory(t, dir, "new dir is not BasicDirectory")
+
+	ctx := context.Background()
+	child := ft.EmptyDirNode()
+	err := ds.Add(ctx, child)
+
+	basicDir := newEmptyBasicDirectory(ds)
+	hamtDir, err := newEmptyHAMTDirectory(ds)
+	assert.NoError(t, err)
+	for i := 0; i < 1000; i++ {
+		basicDir.AddChild(ctx, strconv.FormatUint(uint64(i), 10), child)
+		hamtDir.AddChild(ctx, strconv.FormatUint(uint64(i), 10), child)
+	}
+	compareDirectoryEntries(t, basicDir, hamtDir)
+
+	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx)
+	assert.NoError(t, err)
+	basicDirFromSwitch, err := hamtDir.switchToBasic(ctx)
+	assert.NoError(t, err)
+	compareDirectoryEntries(t, basicDir, basicDirFromSwitch)
+	compareDirectoryEntries(t, hamtDir, hamtDirFromSwitch)
+}
+
+// Test that we fetch as little nodes as needed to reach the HAMTShardingSize
+// during the sizeBelowThreshold computation.
+// FIXME: This only works for a sequential DAG walk.
+// FIXME: Failing in the CI for Ubuntu. This may likely be an indication of race
+//  bug in the code, but `go test -race ./io/` is passing, so probably in the abuse
+//  of static configurations being modified *inside* the tests.
+func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
+	// Adjust HAMT global/static options for the test to simplify its logic.
+	// FIXME: These variables weren't designed to be modified and we should
+	//  review in depth side effects (like the probable Ubuntu error).
+	// Set all link sizes to a uniform 1 so the estimated directory size
+	// is just the count of its entry links (in HAMT/Shard terminology these
+	// are the "value" links pointing to anything that is *not* another Shard).
+	estimatedLinkSize = mockLinkSizeFunc(1)
+	defer func() { estimatedLinkSize = productionLinkSize }()
+	// Use an identity hash function to ease the construction of "complete" HAMTs
+	// (see CreateCompleteHAMT below for more details). (Ideally this should be
+	// a parameter we pass and not a global option we modify in the caller.)
+	oldHashFunc := hamt.HAMTHashFunction
+	defer func() { hamt.HAMTHashFunction = oldHashFunc }()
+	hamt.HAMTHashFunction = hamt.IdHash
+	//oldShardWidth := DefaultShardWidth
+	//defer func() { DefaultShardWidth = oldShardWidth }()
+	//DefaultShardWidth = 8
+	// FIXME: We should be able to use a smaller DefaultShardWidth to have
+	//  a deeper tree and cheaper tests once the import cycle is resolved
+	//  in hamt.CreateCompleteHAMT and the DefaultShardWidth value is not
+	//  hardcoded there.
+
+	// We create a "complete" HAMT (see CreateCompleteHAMT for more details)
+	// with a regular structure to be able to predict how many Shard nodes we
+	// will need to fetch in order to reach the HAMTShardingSize threshold in
+	// sizeBelowThreshold (assuming a sequential DAG walk function).
+	oldHamtOption := HAMTShardingSize
+	defer func() { HAMTShardingSize = oldHamtOption }()
+	// (Some arbitrary values below that make this test not that expensive.)
+	treeHeight := 2
+	thresholdToWidthRatio := 4 // How many leaf shards nodes (with value links,
+	// i.e., directory entries) do we need to reach the threshold.
+	HAMTShardingSize = DefaultShardWidth * thresholdToWidthRatio
+	// With this structure we will then need to fetch the following nodes:
+	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
+	//    the HAMTShardingSize threshold.
+	// * `(treeHeight - 1)` internal nodes to reach those leaf Shard nodes
+	//    (assuming we have thresholdToWidthRatio below the DefaultShardWidth,
+	//     i.e., all leaf nodes come from the same parent).
+	nodesToFetch := thresholdToWidthRatio + treeHeight - 1
+	ds := mdtest.Mock()
+	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight)
+	assert.NoError(t, err)
+
+	countGetsDS := newCountGetsDS(ds)
+	hamtDir, err := newHAMTDirectoryFromNode(countGetsDS, completeHAMTRoot)
+	assert.NoError(t, err)
+
+	countGetsDS.resetCounter()
+	// FIXME: Only works with sequential DAG walk (now hardcoded, needs to be
+	//  added to the internal API) where we can predict the Get requests and
+	//  tree traversal. It would be desirable to have some test for the concurrent
+	//  walk (which is the one used in production).
+	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
+	assert.NoError(t, err)
+	assert.False(t, below)
+	assert.Equal(t, nodesToFetch, countGetsDS.uniqueCidsFetched())
 }
 
 // Compare entries in the leftDir against the rightDir and possibly
 // missingEntries in the second.
-func compareDirectoryEntries(t *testing.T, leftDir Directory, rightDir Directory, missingEntries []*ipld.Link) {
+func compareDirectoryEntries(t *testing.T, leftDir Directory, rightDir Directory) {
 	leftLinks, err := getAllLinksSortedByName(leftDir)
 	assert.NoError(t, err)
 	rightLinks, err := getAllLinksSortedByName(rightDir)
 	assert.NoError(t, err)
-	rightLinks = append(rightLinks, missingEntries...)
-	sortLinksByName(rightLinks)
 
 	assert.Equal(t, len(leftLinks), len(rightLinks))
 
@@ -283,6 +377,8 @@ func sortLinksByName(l []*ipld.Link) {
 	})
 }
 
+// FIXME: Remove if we end up not using this for the integrity checks.
+//  (We could also get rid of getDagService() while doing it.)
 func copyDir(t *testing.T, d Directory) Directory {
 	dirNode, err := d.GetNode()
 	assert.NoError(t, err)
@@ -388,4 +484,63 @@ func TestDirBuilder(t *testing.T) {
 	if len(asyncLinks) != count {
 		t.Fatal("wrong number of links", len(asyncLinks), count)
 	}
+}
+
+// countGetsDS is a DAG service that keeps track of the number of
+// unique CIDs fetched.
+type countGetsDS struct {
+	ipld.DAGService
+
+	cidsFetched map[cid.Cid]struct{}
+	mapLock     sync.Mutex
+}
+
+var _ ipld.DAGService = (*countGetsDS)(nil)
+
+func newCountGetsDS(ds ipld.DAGService) *countGetsDS {
+	return &countGetsDS{
+		ds,
+		make(map[cid.Cid]struct{}),
+		sync.Mutex{},
+	}
+}
+
+func (d *countGetsDS) resetCounter() {
+	d.mapLock.Lock()
+	defer d.mapLock.Unlock()
+	d.cidsFetched = make(map[cid.Cid]struct{})
+}
+
+func (d *countGetsDS) uniqueCidsFetched() int {
+	d.mapLock.Lock()
+	defer d.mapLock.Unlock()
+	return len(d.cidsFetched)
+}
+
+func (d *countGetsDS) Get(ctx context.Context, c cid.Cid) (ipld.Node, error) {
+	node, err := d.DAGService.Get(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	d.mapLock.Lock()
+	d.cidsFetched[c] = struct{}{}
+	d.mapLock.Unlock()
+
+	return node, nil
+}
+
+// Process sequentially (blocking) calling Get which tracks requests.
+func (d *countGetsDS) GetMany(ctx context.Context, cids []cid.Cid) <-chan *ipld.NodeOption {
+	out := make(chan *ipld.NodeOption, len(cids))
+	defer close(out)
+	for _, c := range cids {
+		node, err := d.Get(ctx, c)
+		if err != nil {
+			out <- &ipld.NodeOption{Err: err}
+			break
+		}
+		out <- &ipld.NodeOption{Node: node}
+	}
+	return out
 }

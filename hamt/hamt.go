@@ -210,7 +210,7 @@ func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
 	return err
 }
 
-// SetAndPrevious sets a link poiting to the passed node as the value under the
+// SetAndPrevious sets a link pointing to the passed node as the value under the
 // name key in this Shard or its children. It also returns the previous link
 // under that name key (if any).
 func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {

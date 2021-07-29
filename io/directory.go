@@ -437,7 +437,7 @@ func (d *HAMTDirectory) removeFromSizeChange(name string, linkCid cid.Cid) {
 // (to trigger a transition to a BasicDirectory). It returns two `bool`s:
 // * whether it's below (true) or equal/above (false)
 // * whether the passed timeout to compute the size has been exceeded
-// Instead of enumearting the entire tree we eagerly call EnumLinksAsync
+// Instead of enumerating the entire tree we eagerly call EnumLinksAsync
 // until we either reach a value above the threshold (in that case no need)
 // to keep counting or the timeout runs out in which case the `below` return
 // value is not to be trusted as we didn't have time to count enough shards.

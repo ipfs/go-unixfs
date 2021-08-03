@@ -415,15 +415,12 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 		}
 
 		return nil
+		// This function enumerates all the links in the Directory requiring all
+		// shards to be accessible but it is only called *after* sizeBelowThreshold
+		// returns true, which means we have already enumerated and fetched *all*
+		// shards in the first place (that's the only way we can be really sure
+		// we are actually below the threshold).
 	})
-	// FIXME: The above was adapted from SwitchToSharding. We can probably optimize:
-	//  2. Do not enumerate all link from scratch (harder than previous
-	//     item). We call this function only from the UpgradeableDirectory
-	//     when we went below the threshold: the detection will be done through
-	//     (partial) enumeration. We may be able to reuse some of that work
-	//     (likely retaining the links in a cache). (All this is uncertain
-	//     at this point as we don't know how partial enumeration will be
-	//     implemented.)
 
 	return basicDir, nil
 }

@@ -198,17 +198,28 @@ func (d *BasicDirectory) SetCidBuilder(builder cid.Builder) {
 // AddChild implements the `Directory` interface. It adds (or replaces)
 // a link to the given `node` under `name`.
 func (d *BasicDirectory) AddChild(ctx context.Context, name string, node ipld.Node) error {
+	link, err := ipld.MakeLink(node)
+	if err != nil {
+		return err
+	}
+
+	return d.addLinkChild(ctx, name, link)
+}
+
+// addLinkChild adds the link as an entry to this directory under the given
+// name. Plumbing function for the AddChild API.
+func (d *BasicDirectory) addLinkChild(ctx context.Context, name string, link *ipld.Link) error {
 	// Remove old link (if it existed; ignore `ErrNotExist` otherwise).
 	err := d.RemoveChild(ctx, name)
 	if err != nil && err != os.ErrNotExist {
 		return err
 	}
 
-	err = d.node.AddNodeLink(name, node)
+	err = d.node.AddRawLink(name, link)
 	if err != nil {
 		return err
 	}
-	d.addToEstimatedSize(name, node.Cid())
+	d.addToEstimatedSize(name, link.Cid)
 	return nil
 }
 
@@ -398,12 +409,7 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 	basicDir.SetCidBuilder(d.GetCidBuilder())
 
 	d.ForEachLink(context.TODO(), func(lnk *ipld.Link) error {
-		node, err := d.dserv.Get(ctx, lnk.Cid)
-		if err != nil {
-			return err
-		}
-
-		err = basicDir.AddChild(ctx, lnk.Name, node)
+		err := basicDir.addLinkChild(ctx, lnk.Name, lnk)
 		if err != nil {
 			return err
 		}
@@ -411,9 +417,6 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 		return nil
 	})
 	// FIXME: The above was adapted from SwitchToSharding. We can probably optimize:
-	//  1. Do not retrieve the full node but create the link from the
-	//     HAMT entry and add it to the BasicDirectory with a (new)
-	//     plumbing function that operates below the AddChild level.
 	//  2. Do not enumerate all link from scratch (harder than previous
 	//     item). We call this function only from the UpgradeableDirectory
 	//     when we went below the threshold: the detection will be done through

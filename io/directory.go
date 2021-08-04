@@ -244,7 +244,7 @@ func (d *BasicDirectory) EnumLinksAsync(ctx context.Context) <-chan format.LinkR
 }
 
 // ForEachLink implements the `Directory` interface.
-func (d *BasicDirectory) ForEachLink(ctx context.Context, f func(*ipld.Link) error) error {
+func (d *BasicDirectory) ForEachLink(_ context.Context, f func(*ipld.Link) error) error {
 	for _, l := range d.node.Links() {
 		if err := f(l); err != nil {
 			return err
@@ -408,7 +408,7 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 	basicDir := newEmptyBasicDirectory(d.dserv)
 	basicDir.SetCidBuilder(d.GetCidBuilder())
 
-	d.ForEachLink(context.TODO(), func(lnk *ipld.Link) error {
+	d.ForEachLink(ctx, func(lnk *ipld.Link) error {
 		err := basicDir.addLinkChild(ctx, lnk.Name, lnk)
 		if err != nil {
 			return err

@@ -174,6 +174,8 @@ func (d *BasicDirectory) computeEstimatedSize() {
 		d.addToEstimatedSize(l.Name, l.Cid)
 		return nil
 	})
+	// ForEachLink will never fail traversing the BasicDirectory
+	// and neither the inner callback `addToEstimatedSize`.
 }
 
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
@@ -408,7 +410,7 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 	basicDir := newEmptyBasicDirectory(d.dserv)
 	basicDir.SetCidBuilder(d.GetCidBuilder())
 
-	d.ForEachLink(ctx, func(lnk *ipld.Link) error {
+	err := d.ForEachLink(ctx, func(lnk *ipld.Link) error {
 		err := basicDir.addLinkChild(ctx, lnk.Name, lnk)
 		if err != nil {
 			return err
@@ -421,6 +423,9 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 		// shards in the first place (that's the only way we can be really sure
 		// we are actually below the threshold).
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return basicDir, nil
 }

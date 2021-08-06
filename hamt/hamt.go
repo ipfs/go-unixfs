@@ -355,7 +355,17 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 		defer cancel()
 		getLinks := makeAsyncTrieGetLinks(ds.dserv, linkResults)
 		cset := cid.NewSet()
-		err := dag.Walk(ctx, getLinks, ds.cid, cset.Visit, dag.Concurrent())
+		// FIXME: The Shard.cid field which `dag.Walk` depended on is not always
+		//  set on the Shard creation (only when loading from a node). We extract
+		//  the node here then, but this of course means fetching all the shards
+		//  beforehand which is exactly what we don't want. Will look at alternatives
+		//  to make this more standard.
+		rootNode, err := ds.Node()
+		if err != nil {
+			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
+			return
+		}
+		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit)
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 		}

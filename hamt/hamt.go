@@ -43,8 +43,6 @@ func (ds *Shard) isValueNode() bool {
 
 // A Shard represents the HAMT. It should be initialized with NewShard().
 type Shard struct {
-	cid cid.Cid
-
 	childer *childer
 
 	tableSize    int
@@ -123,7 +121,6 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 
 	ds.childer.makeChilder(fsn.Data(), pbnd.Links())
 
-	ds.cid = pbnd.Cid()
 	ds.hashFunc = fsn.HashType()
 	ds.builder = pbnd.CidBuilder()
 

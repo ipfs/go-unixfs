@@ -352,23 +352,6 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 		defer cancel()
 		getLinks := makeAsyncTrieGetLinks(ds.dserv, linkResults)
 		cset := cid.NewSet()
-		// FIXME: The `dag.Walk` interface depends on the CID of the root of
-		//  the DAG being traversed.
-		//  When this function is called from `io.sizeBelowThreshold` we may
-		//  not have that available (as the directory has changed and the last
-		//  CID from which the `io.HAMTDirectory` was loaded from, if any, might
-		//  be outdated).
-		//  Ideally we would need to extend the DAG walk function to handle Shards
-		//  and not IPLD nodes. (See https://github.com/ipfs/go-ipld-format/blob/master/walker.go
-		//  as an example of a more generic walker that doesn't necessarily depend
-		//  on IPLD nodes and CIDs, although it may not be the correct choice here.)
-		//
-		//  For the moment, to make the current PR tests pass, we force the Shards
-		//  to serialize to an IPLD node to extract its CID for the `Walk` API,
-		//  but this of course means fetching all the shards in the directory
-		//  beforehand which is exactly what we don't want (defeating the initial
-		//  purpose of the `io.sizeBelowThreshold` that tries to retrieve as little
-		//  shards as possible).
 		rootNode, err := ds.Node()
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})

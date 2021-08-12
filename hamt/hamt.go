@@ -357,7 +357,7 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 			return
 		}
-		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit)
+		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit, dag.Concurrent())
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 		}

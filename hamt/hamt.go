@@ -455,9 +455,6 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 
 	if child.isValueNode() {
 		// Leaf node. This is the base case of this recursive function.
-		// FIXME: Misleading: the base case also includes a recursive call
-		//  in the case both keys share the same slot in the new child shard
-		//  below.
 		if child.key == key {
 			// We are in the correct shard (tree level) so we modify this child
 			// and return.
@@ -473,9 +470,6 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 
 		if value == nil {
 			return nil, os.ErrNotExist
-			// FIXME: Move this case to the top of the clause as
-			//  if child.key != key
-			//  and remove the indentation on the big if.
 		}
 
 		// We are in the same slot with another entry with a different key
@@ -502,11 +496,6 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// (which will be nil) to highlight there is no overwrite here: they are
 		// done with different keys to a new (empty) shard. (At best this shard
 		// will create new ones until we find different slots for both.)
-		// FIXME: These two shouldn't be recursive calls where one function
-		//  adds the child and the other replaces it with a shard to go one
-		//  level deeper. This should just be a simple loop that traverses the
-		//  shared prefix in the key adding as many shards as needed and finally
-		//  inserts both leaf links together.
 		_, err = child.setValue(ctx, hv, key, value)
 		if err != nil {
 			return

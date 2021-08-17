@@ -337,9 +337,6 @@ func (d *HAMTDirectory) SetCidBuilder(builder cid.Builder) {
 func (d *HAMTDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
 	oldChild, err := d.shard.SetAndPrevious(ctx, name, nd)
 	if err != nil {
-		// FIXME: We don't know if SetAndPrevious failed before removing the
-		//  old entry or not (it certainly failed before *adding* it, right?).
-		//  We should check this.
 		return err
 	}
 

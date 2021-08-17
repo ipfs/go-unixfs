@@ -21,4 +21,4 @@ require (
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
 )
 
-go 1.15
+go 1.16

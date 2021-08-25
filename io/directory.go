@@ -561,20 +561,27 @@ func (d *UpgradeableDirectory) getDagService() ipld.DAGService {
 //  and very dependent on the use case so it might not be worth it.
 func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
-	if ok {
-		switchToBasic, err := hamtDir.needsToSwitchToBasicDir(ctx, name)
-		if err != nil {
-			return err
-		}
-
-		if switchToBasic {
-			basicDir, err := hamtDir.switchToBasic(ctx)
-			if err != nil {
-				return err
-			}
-			d.Directory = basicDir
-		}
+	if !ok {
+		return d.Directory.RemoveChild(ctx, name)
 	}
 
-	return d.Directory.RemoveChild(ctx, name)
+	switchToBasic, err := hamtDir.needsToSwitchToBasicDir(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if !switchToBasic {
+		return hamtDir.RemoveChild(ctx, name)
+	}
+
+	basicDir, err := hamtDir.switchToBasic(ctx)
+	if err != nil {
+		return err
+	}
+	basicDir.RemoveChild(ctx, name)
+	if err != nil {
+		return err
+	}
+	d.Directory = basicDir
+	return nil
 }

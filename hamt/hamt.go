@@ -43,8 +43,6 @@ func (ds *Shard) isValueNode() bool {
 
 // A Shard represents the HAMT. It should be initialized with NewShard().
 type Shard struct {
-	cid cid.Cid
-
 	childer *childer
 
 	tableSize    int
@@ -123,7 +121,6 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 
 	ds.childer.makeChilder(fsn.Data(), pbnd.Links())
 
-	ds.cid = pbnd.Cid()
 	ds.hashFunc = fsn.HashType()
 	ds.builder = pbnd.CidBuilder()
 
@@ -355,7 +352,12 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 		defer cancel()
 		getLinks := makeAsyncTrieGetLinks(ds.dserv, linkResults)
 		cset := cid.NewSet()
-		err := dag.Walk(ctx, getLinks, ds.cid, cset.Visit, dag.Concurrent())
+		rootNode, err := ds.Node()
+		if err != nil {
+			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
+			return
+		}
+		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit, dag.Concurrent())
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 		}

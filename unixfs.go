@@ -228,7 +228,7 @@ func (n *FSNode) Mode() os.FileMode {
 	return os.FileMode(n.format.GetMode())
 }
 
-func (n *FSNode) MTime() time.Time {
+func (n *FSNode) ModTime() time.Time {
 	if t := n.format.GetMtime(); t != nil {
 		return time.Unix(*t.Seconds, int64(*t.Nanos))
 	}

@@ -146,7 +146,7 @@ func (f *ufsFile) Mode() os.FileMode {
 }
 
 func (f *ufsFile) ModTime() time.Time {
-	return f.FSNode.MTime()
+	return f.FSNode.ModTime()
 }
 
 func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode) (files.Directory, error) {

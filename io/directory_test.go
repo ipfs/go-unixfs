@@ -263,6 +263,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	ctx := context.Background()
 	child := ft.EmptyDirNode()
 	err := ds.Add(ctx, child)
+	assert.NoError(t, err)
 
 	basicDir := newEmptyBasicDirectory(ds)
 	hamtDir, err := newEmptyHAMTDirectory(ds)
@@ -379,27 +380,27 @@ func sortLinksByName(l []*ipld.Link) {
 
 // FIXME: Remove if we end up not using this for the integrity checks.
 //  (We could also get rid of getDagService() while doing it.)
-func copyDir(t *testing.T, d Directory) Directory {
-	dirNode, err := d.GetNode()
-	assert.NoError(t, err)
-	// Extract the DAG service from the directory (i.e., its link entries saved
-	// in it). This is not exposed in the interface and we won't change that now.
-	// FIXME: Still, this isn't nice.
-	var ds ipld.DAGService
-	switch v := d.(type) {
-	case *BasicDirectory:
-		ds = v.dserv
-	case *HAMTDirectory:
-		ds = v.dserv
-	case *UpgradeableDirectory:
-		ds = v.getDagService()
-	default:
-		panic("unknown directory type")
-	}
-	copiedDir, err := NewDirectoryFromNode(ds, dirNode)
-	assert.NoError(t, err)
-	return copiedDir
-}
+//func copyDir(t *testing.T, d Directory) Directory {
+//	dirNode, err := d.GetNode()
+//	assert.NoError(t, err)
+//	// Extract the DAG service from the directory (i.e., its link entries saved
+//	// in it). This is not exposed in the interface and we won't change that now.
+//	// FIXME: Still, this isn't nice.
+//	var ds ipld.DAGService
+//	switch v := d.(type) {
+//	case *BasicDirectory:
+//		ds = v.dserv
+//	case *HAMTDirectory:
+//		ds = v.dserv
+//	case *UpgradeableDirectory:
+//		ds = v.getDagService()
+//	default:
+//		panic("unknown directory type")
+//	}
+//	copiedDir, err := NewDirectoryFromNode(ds, dirNode)
+//	assert.NoError(t, err)
+//	return copiedDir
+//}
 
 func TestDirBuilder(t *testing.T) {
 	ds := mdtest.Mock()

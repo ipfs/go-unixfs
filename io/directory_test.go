@@ -179,7 +179,7 @@ func testDirectorySizeEstimation(t *testing.T, dir Directory, ds ipld.DAGService
 	// Restore a directory from original's node and check estimated size consistency.
 	dirNode, err := dir.GetNode()
 	assert.NoError(t, err)
-	restoredDir,err := NewDirectoryFromNode(ds, dirNode.(*mdag.ProtoNode))
+	restoredDir, err := NewDirectoryFromNode(ds, dirNode.(*mdag.ProtoNode))
 	assert.NoError(t, err)
 	assert.Equal(t, size(dir), fullSizeEnumeration(restoredDir), "restored directory's size doesn't match original's")
 	// We don't use the estimation size function for the restored directory

@@ -103,6 +103,11 @@ type HAMTDirectory struct {
 
 	// Track the changes in size by the AddChild and RemoveChild calls
 	// for the HAMTShardingSize option.
+	// FIXME: Consider clearing this variable after we enumerate enough HAMT
+	//  shards in sizeBelowThreshold to know we are still above it. This would
+	//  make subsequent calls return without subsequent enumerations as we
+	//  have already ascertain that what we have removed so far is not enough
+	//  to trigger a switch.
 	sizeChange int
 }
 
@@ -641,11 +646,6 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 // RemoveChild implements the `Directory` interface. Used in the case where we wrap
 // a HAMTDirectory that might need to be downgraded to a BasicDirectory. The
 // upgrade path is in AddChild.
-// FIXME: Consider adding some margin in the comparison against HAMTShardingSize
-//  to avoid an eager enumeration at the first opportunity we go below it
-//  (in which case we would have the hard comparison in GetNode() to make
-//  sure we make good on the value). Finding the right margin can be tricky
-//  and very dependent on the use case so it might not be worth it.
 func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if !ok {

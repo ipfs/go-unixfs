@@ -531,10 +531,10 @@ func (ds *Shard) walkTrie(ctx context.Context, cb func(*Shard) error) error {
 
 // setValue sets the link `value` in the given key, either creating the entry
 // if it didn't exist or overwriting the old one. It returns the old entry (if any).
-func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *ipld.Link) (oldValue *ipld.Link, err error) {
+func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *ipld.Link) (*ipld.Link, error) {
 	idx, err := hv.Next(ds.tableSizeLg2)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if !ds.childer.has(idx) {
@@ -545,7 +545,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 	i := ds.childer.sliceIndex(idx)
 	child, err := ds.childer.get(ctx, i)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if child.IsValueNode() {
@@ -553,14 +553,14 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		if child.key == key {
 			// We are in the correct shard (tree level) so we modify this child
 			// and return.
-			oldValue = child.val
+			oldValue := child.val
 
 			if value == nil { // Remove old entry.
 				return oldValue, ds.childer.rm(idx)
 			}
 
 			child.val = value // Overwrite entry.
-			return
+			return oldValue, nil
 		}
 
 		if value == nil {
@@ -590,11 +590,11 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// will create new ones until we find different slots for both.)
 		_, err = child.setValue(ctx, hv, key, value)
 		if err != nil {
-			return
+			return nil, err
 		}
 		_, err = child.setValue(ctx, chhv, grandChild.key, grandChild.val)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		// Replace this leaf node with the new Shard node.
@@ -603,9 +603,9 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 	} else {
 		// We are in a Shard (internal node). We will recursively call this
 		// function until finding the leaf (the logic of the `if` case above).
-		oldValue, err = child.setValue(ctx, hv, key, value)
+		oldValue, err := child.setValue(ctx, hv, key, value)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		if value == nil {
@@ -629,7 +629,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 					if schild.IsValueNode() {
 						ds.childer.set(schild, i)
 					}
-					return
+					return oldValue, nil
 				}
 
 				// Otherwise, work with the link.
@@ -637,17 +637,17 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 				var lnkType linkType
 				lnkType, err = child.childer.sd.childLinkType(slnk)
 				if err != nil {
-					return
+					return nil, err
 				}
 				if lnkType == shardValueLink {
 					// sub-shard with a single value element, collapse it
 					ds.childer.setLink(slnk, i)
 				}
-				return
+				return oldValue, nil
 			}
 		}
 
-		return
+		return oldValue, nil
 	}
 }
 

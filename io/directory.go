@@ -508,10 +508,31 @@ func (d *HAMTDirectory) needsToSwitchToBasicDir(ctx context.Context, name string
 
 // Evaluate directory size and a future sizeChange and check if it will be below
 // HAMTShardingSize threshold (to trigger a transition to a BasicDirectory).
-// Instead of enumerating the entire tree we eagerly call EnumLinksAsync
-// until we either reach a value above the threshold (in that case no need
-// to keep counting) or an error occurs (like the context being canceled
-// if we take too much time fetching the necessary shards).
+// Instead of enumerating the entire tree we call EnumLinksAsync until we either
+// reach a value above the threshold (in that case no need to keep counting) or an
+// error occurs (like the context being canceled if we take too much time fetching
+// the necessary shards).
+//
+// The main options to enumerate the HAMT considered were:
+// 1. Iterate synchronously in order
+// 2. Iterate asynchronously without strictly caring about the order
+// 3. Iterate asynchronously but trying to stay in order
+// The first two are really easy since we have them via ForEachLink and
+// EnumLinksAsync; the third is a bit trickier (although isn't too far off from
+// EnumLinksAsync).
+//
+// The main issues with synchronous iteration is if a single shard happens to be
+// missing (or hard to find) we'll error. The main issue with asynchrnously
+// iterating without caring about the order is that we could potentially end up
+// waiting around for nodes we don't need since we have other ones on disk that
+// could satisfy our query (as iterating synchronously in order implies we always
+// query the same initial shards, in DFS order, which will remain on disk across
+// queries).
+//
+// It seems like EnumLinksAsync shouldn't put us in this situation since it queries
+// mostly in order, however if this becomes an issue we can easily revisit since
+// this is really just about optimization and doesn't change the data structures at
+// all.
 func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) (below bool, err error) {
 	if HAMTShardingSize == 0 {
 		panic("asked to compute HAMT size with HAMTShardingSize option off (0)")

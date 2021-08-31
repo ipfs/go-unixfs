@@ -3,7 +3,6 @@ package io
 import (
 	"context"
 	"fmt"
-	"github.com/ipfs/go-unixfs/hamt"
 	"math"
 	"sort"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
+	"github.com/ipfs/go-unixfs/hamt"
 
 	"github.com/stretchr/testify/assert"
 )

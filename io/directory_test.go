@@ -224,7 +224,7 @@ func TestProductionLinkSize(t *testing.T) {
 	basicDir := newEmptyBasicDirectory(ds)
 	assert.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		basicDir.AddChild(nil, strconv.FormatUint(uint64(i), 10), ft.EmptyFileNode())
+		basicDir.AddChild(context.Background(), strconv.FormatUint(uint64(i), 10), ft.EmptyFileNode())
 	}
 	basicDirNode, err := basicDir.GetNode()
 	assert.NoError(t, err)

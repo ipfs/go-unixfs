@@ -209,6 +209,31 @@ func checkHAMTDirectory(t *testing.T, dir Directory, errorMessage string) {
 	}
 }
 
+func TestProductionLinkSize(t *testing.T) {
+	link, err := ipld.MakeLink(ft.EmptyDirNode())
+	assert.NoError(t, err)
+	link.Name = "directory_link_name"
+	assert.Equal(t, 53, productionLinkSize(link.Name, link.Cid))
+
+	link, err = ipld.MakeLink(ft.EmptyFileNode())
+	assert.NoError(t, err)
+	link.Name = "file_link_name"
+	assert.Equal(t, 48, productionLinkSize(link.Name, link.Cid))
+
+	ds := mdtest.Mock()
+	basicDir := newEmptyBasicDirectory(ds)
+	assert.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		basicDir.AddChild(nil, strconv.FormatUint(uint64(i), 10), ft.EmptyFileNode())
+	}
+	basicDirNode, err := basicDir.GetNode()
+	assert.NoError(t, err)
+	link, err = ipld.MakeLink(basicDirNode)
+	assert.NoError(t, err)
+	link.Name = "basic_dir"
+	assert.Equal(t, 43, productionLinkSize(link.Name, link.Cid))
+}
+
 // Test HAMTDirectory <-> BasicDirectory switch based on directory size. The
 // switch is managed by the UpgradeableDirectory abstraction.
 func TestUpgradeableDirectorySwitch(t *testing.T) {

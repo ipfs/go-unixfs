@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -328,13 +329,12 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	oldHashFunc := hamt.HAMTHashFunction
 	defer func() { hamt.HAMTHashFunction = oldHashFunc }()
 	hamt.HAMTHashFunction = hamt.IdHash
-	//oldShardWidth := DefaultShardWidth
-	//defer func() { DefaultShardWidth = oldShardWidth }()
-	//DefaultShardWidth = 8
-	// FIXME: We should be able to use a smaller DefaultShardWidth to have
-	//  a deeper tree and cheaper tests once the import cycle is resolved
-	//  in hamt.CreateCompleteHAMT and the DefaultShardWidth value is not
-	//  hardcoded there.
+	oldShardWidth := DefaultShardWidth
+	defer func() { DefaultShardWidth = oldShardWidth }()
+	DefaultShardWidth = 256 // FIXME: Review number. From 256 to 8.
+
+	// FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
+	defaultConcurrentFetch := 32
 
 	// We create a "complete" HAMT (see CreateCompleteHAMT for more details)
 	// with a regular structure to be able to predict how many Shard nodes we
@@ -343,9 +343,12 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
 	// (Some arbitrary values below that make this test not that expensive.)
-	treeHeight := 2
-	thresholdToWidthRatio := 4 // How many leaf shards nodes (with value links,
+	treeHeight := 2 // FIXME: Review number. From 2 to 3.
+	// How many leaf shards nodes (with value links,
 	// i.e., directory entries) do we need to reach the threshold.
+	thresholdToWidthRatio := defaultConcurrentFetch
+	// FIXME: Review dag.Walk algorithm to better figure out this estimate.
+
 	HAMTShardingSize = DefaultShardWidth * thresholdToWidthRatio
 	// With this structure we will then need to fetch the following nodes:
 	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
@@ -353,9 +356,10 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// * `(treeHeight - 1)` internal nodes to reach those leaf Shard nodes
 	//    (assuming we have thresholdToWidthRatio below the DefaultShardWidth,
 	//     i.e., all leaf nodes come from the same parent).
-	nodesToFetch := thresholdToWidthRatio + treeHeight - 1
+	//nodesToFetch := thresholdToWidthRatio + treeHeight - 1
+	nodesToFetch := defaultConcurrentFetch * 2 // FIXME: Review.
 	ds := mdtest.Mock()
-	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight)
+	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, DefaultShardWidth)
 	assert.NoError(t, err)
 
 	countGetsDS := newCountGetsDS(ds)
@@ -363,6 +367,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	assert.NoError(t, err)
 
 	countGetsDS.resetCounter()
+	countGetsDS.setRequestDelay(100 * time.Millisecond)
 	// FIXME: Only works with sequential DAG walk (now hardcoded, needs to be
 	//  added to the internal API) where we can predict the Get requests and
 	//  tree traversal. It would be desirable to have some test for the concurrent
@@ -371,6 +376,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, below)
 	assert.Equal(t, nodesToFetch, countGetsDS.uniqueCidsFetched())
+	//assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch)
 }
 
 // Compare entries in the leftDir against the rightDir and possibly
@@ -519,6 +525,8 @@ type countGetsDS struct {
 
 	cidsFetched map[cid.Cid]struct{}
 	mapLock     sync.Mutex
+
+	getRequestDelay time.Duration
 }
 
 var _ ipld.DAGService = (*countGetsDS)(nil)
@@ -528,6 +536,7 @@ func newCountGetsDS(ds ipld.DAGService) *countGetsDS {
 		ds,
 		make(map[cid.Cid]struct{}),
 		sync.Mutex{},
+		0,
 	}
 }
 
@@ -543,6 +552,10 @@ func (d *countGetsDS) uniqueCidsFetched() int {
 	return len(d.cidsFetched)
 }
 
+func (d *countGetsDS) setRequestDelay(timeout time.Duration) {
+	d.getRequestDelay = timeout
+}
+
 func (d *countGetsDS) Get(ctx context.Context, c cid.Cid) (ipld.Node, error) {
 	node, err := d.DAGService.Get(ctx, c)
 	if err != nil {
@@ -550,23 +563,20 @@ func (d *countGetsDS) Get(ctx context.Context, c cid.Cid) (ipld.Node, error) {
 	}
 
 	d.mapLock.Lock()
+	_, cidRequestedBefore := d.cidsFetched[c]
 	d.cidsFetched[c] = struct{}{}
 	d.mapLock.Unlock()
+
+	if d.getRequestDelay != 0 && !cidRequestedBefore {
+		// First request gets a timeout to simulate a network fetch.
+		// Subsequent requests get no timeout simulating an in-disk cache.
+		time.Sleep(d.getRequestDelay)
+	}
 
 	return node, nil
 }
 
 // Process sequentially (blocking) calling Get which tracks requests.
 func (d *countGetsDS) GetMany(ctx context.Context, cids []cid.Cid) <-chan *ipld.NodeOption {
-	out := make(chan *ipld.NodeOption, len(cids))
-	defer close(out)
-	for _, c := range cids {
-		node, err := d.Get(ctx, c)
-		if err != nil {
-			out <- &ipld.NodeOption{Err: err}
-			break
-		}
-		out <- &ipld.NodeOption{Node: node}
-	}
-	return out
+	panic("GetMany not supported")
 }

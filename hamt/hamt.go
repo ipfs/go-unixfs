@@ -393,8 +393,8 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 			return
 		}
 		// FIXME: Make concurrency an option for testing.
-		//err := dag.Walk(ctx, getLinks, ds.cid, cset.Visit, dag.Concurrent())
-		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit)
+		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit, dag.Concurrent())
+		//err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit)
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 		}

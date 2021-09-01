@@ -375,8 +375,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
 	assert.NoError(t, err)
 	assert.False(t, below)
-	assert.Equal(t, nodesToFetch, countGetsDS.uniqueCidsFetched())
-	//assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch)
+	//assert.Equal(t, nodesToFetch, countGetsDS.uniqueCidsFetched())
+	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch)
 }
 
 // Compare entries in the leftDir against the rightDir and possibly

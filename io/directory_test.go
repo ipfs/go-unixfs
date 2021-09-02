@@ -331,9 +331,13 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	hamt.HAMTHashFunction = hamt.IdHash
 	oldShardWidth := DefaultShardWidth
 	defer func() { DefaultShardWidth = oldShardWidth }()
-	DefaultShardWidth = 256 // FIXME: Review number. From 256 to 8.
+	DefaultShardWidth = 16 // FIXME: Review number. From 256 to 16 or 8 (if
+	//  (if we fix CreateCompleteHAMT).
 
 	// FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
+	// (We can also pass an explicit concurrency value in `(*Shard).EnumLinksAsync()`
+	// and take ownership of this configuration, but departing from the more
+	// standard and reliable one in `go-merkledag`.
 	defaultConcurrentFetch := 32
 
 	// We create a "complete" HAMT (see CreateCompleteHAMT for more details)
@@ -343,21 +347,28 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
 	// (Some arbitrary values below that make this test not that expensive.)
-	treeHeight := 2 // FIXME: Review number. From 2 to 3.
+	treeHeight := 3 // FIXME: Review number. From 2 to 3.
 	// How many leaf shards nodes (with value links,
 	// i.e., directory entries) do we need to reach the threshold.
-	thresholdToWidthRatio := defaultConcurrentFetch
+	thresholdToWidthRatio := 4
 	// FIXME: Review dag.Walk algorithm to better figure out this estimate.
 
 	HAMTShardingSize = DefaultShardWidth * thresholdToWidthRatio
-	// With this structure we will then need to fetch the following nodes:
+	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
+	// we would roughly fetch the following nodes:
+	nodesToFetch := 0
+	// * all layers up to (but not including) the last one with leaf nodes
+	//   (because it's a BFS)
+	for i := 0; i < treeHeight; i++ {
+		nodesToFetch += int(math.Pow(float64(DefaultShardWidth), float64(i)))
+	}
 	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
 	//    the HAMTShardingSize threshold.
-	// * `(treeHeight - 1)` internal nodes to reach those leaf Shard nodes
-	//    (assuming we have thresholdToWidthRatio below the DefaultShardWidth,
-	//     i.e., all leaf nodes come from the same parent).
-	//nodesToFetch := thresholdToWidthRatio + treeHeight - 1
-	nodesToFetch := defaultConcurrentFetch * 2 // FIXME: Review.
+	nodesToFetch += thresholdToWidthRatio
+	// * `defaultConcurrentFetch` potential extra nodes of the threads working
+	//    in parallel
+	nodesToFetch += defaultConcurrentFetch
+
 	ds := mdtest.Mock()
 	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, DefaultShardWidth)
 	assert.NoError(t, err)
@@ -367,7 +378,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	assert.NoError(t, err)
 
 	countGetsDS.resetCounter()
-	countGetsDS.setRequestDelay(100 * time.Millisecond)
+	countGetsDS.setRequestDelay(10 * time.Millisecond)
 	// FIXME: Only works with sequential DAG walk (now hardcoded, needs to be
 	//  added to the internal API) where we can predict the Get requests and
 	//  tree traversal. It would be desirable to have some test for the concurrent
@@ -375,8 +386,13 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
 	assert.NoError(t, err)
 	assert.False(t, below)
-	//assert.Equal(t, nodesToFetch, countGetsDS.uniqueCidsFetched())
+	t.Logf("fetched %d/%d nodes", countGetsDS.uniqueCidsFetched(), nodesToFetch)
 	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch)
+	assert.True(t, countGetsDS.uniqueCidsFetched() >= nodesToFetch-defaultConcurrentFetch)
+	// (Without the `setRequestDelay` above the number of nodes fetched
+	//  drops dramatically and unpredictably as the BFS starts to behave
+	//  more like a DFS because some search paths are fetched faster than
+	//  others.)
 }
 
 // Compare entries in the leftDir against the rightDir and possibly

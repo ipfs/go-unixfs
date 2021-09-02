@@ -126,6 +126,8 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 		var hashbuf [8]byte
 		binary.LittleEndian.PutUint64(hashbuf[:], uint64(i))
 		var oldLink *ipld.Link
+		// FIXME: This is wrong for childsPerNode/DefaultShardWidth different
+		//  than 256 (i.e., one byte of key per level).
 		oldLink, err = rootShard.SetAndPrevious(context.Background(), string(hashbuf[:treeHeight]), unixfs.EmptyFileNode())
 		if err != nil {
 			return nil, err

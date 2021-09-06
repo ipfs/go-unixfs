@@ -389,13 +389,35 @@ func (n *FSNodeOverDag) SetFileData(fileData []byte) {
 	n.file.SetData(fileData)
 }
 
+// SetFileMetaData stores file attributes present in the `DagBuilderHelper`
+// into the associated `ft.FSNode`.
 func (n *FSNodeOverDag) SetFileMetaData(db *DagBuilderHelper) {
 	if !db.fileMtime.IsZero() {
-		n.file.SetModTime(db.fileMtime)
+		n.SetModTime(db.fileMtime)
 	}
 	if db.fileMode != 0 {
-		n.file.SetMode(db.fileMode)
+		n.SetMode(db.fileMode)
 	}
+}
+
+// SetMode sets the file mode of the associated `ft.FSNode`.
+func (n *FSNodeOverDag) SetMode(mode os.FileMode) {
+	n.file.SetMode(mode)
+}
+
+// SetModTime sets the file modification time of the associated `ft.FSNode`.
+func (n *FSNodeOverDag) SetModTime(ts time.Time) {
+	n.file.SetModTime(ts)
+}
+
+// Mode returns the file mode of the associated `ft.FSNode`
+func (n *FSNodeOverDag) Mode() os.FileMode {
+	return n.file.Mode()
+}
+
+// ModTime returns the last modification time of the associated `ft.FSNode`
+func (n *FSNodeOverDag) ModTime() time.Time {
+	return n.file.ModTime()
 }
 
 // GetDagNode fills out the proper formatting for the FSNodeOverDag node

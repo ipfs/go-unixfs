@@ -22,6 +22,7 @@ import (
 
 	ft "github.com/ipfs/go-unixfs"
 	h "github.com/ipfs/go-unixfs/importer/helpers"
+	"time"
 
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -94,10 +95,13 @@ func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out i
 	}
 
 	// Convert to unixfs node for working with easily
-
 	fsn, err := h.NewFSNFromDag(base)
 	if err != nil {
 		return nil, err
+	}
+
+	if !fsn.ModTime().IsZero() {
+		fsn.SetModTime(time.Now())
 	}
 
 	// Get depth of this 'tree'

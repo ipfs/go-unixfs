@@ -134,7 +134,6 @@ func (d *ufsDirectory) ModTime() time.Time {
 
 type ufsFile struct {
 	uio.DagReader
-	*ft.FSNode
 }
 
 func (f *ufsFile) Size() (int64, error) {
@@ -142,11 +141,11 @@ func (f *ufsFile) Size() (int64, error) {
 }
 
 func (f *ufsFile) Mode() os.FileMode {
-	return f.FSNode.Mode()
+	return f.DagReader.Mode()
 }
 
 func (f *ufsFile) ModTime() time.Time {
-	return f.FSNode.ModTime()
+	return f.DagReader.ModTime()
 }
 
 func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode) (files.Directory, error) {
@@ -178,7 +177,6 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 		if err != nil {
 			return nil, err
 		}
-		ufs.FSNode = fsn
 
 		if fsn.IsDir() {
 			return newUnixfsDir(ctx, dserv, dn)

@@ -91,7 +91,7 @@ func IdHash(val []byte) []byte {
 // * all leaf Shard nodes have the same depth (and have only 'value' links).
 // * all internal Shard nodes point only to other Shards (and hence have zero 'value' links).
 // * the total number of 'value' links (directory entries) is:
-//   io.DefaultShardWidth ^ treeHeight.
+//   io.DefaultShardWidth ^ (treeHeight + 1).
 // FIXME: HAMTHashFunction needs to be set to IdHash by the caller. We depend on
 //  this simplification for the current logic to work. (HAMTHashFunction is a
 //  global setting of the package, it is hard-coded in the serialized Shard node
@@ -100,7 +100,7 @@ func IdHash(val []byte) []byte {
 //  the fake hash as in io.SetAndPrevious through `newHashBits()` and pass
 //  it as an argument making the hash independent of tree manipulation; that
 //  sounds as the correct way to go in general and we wouldn't need this.)
-func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int) (ipld.Node, error) {
+func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (ipld.Node, error) {
 	if treeHeight < 1 {
 		panic("treeHeight < 1")
 	}
@@ -111,11 +111,6 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int) (ipld.Node, error) {
 	//	panic("we do not support a hash function other than ID")
 	//}
 	// FIXME: Any clean and simple way to do this? Otherwise remove check.
-
-	//childsPerNode := io.DefaultShardWidth
-	childsPerNode := 256 // (FIXME: hard-coded as we have an 'import cycle not
-	//  allowed' error from io package otherwise.)
-	// FIXME: Evaluate making this an argument.
 
 	rootShard, err := NewShard(ds, childsPerNode)
 	if err != nil {
@@ -131,6 +126,8 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int) (ipld.Node, error) {
 		var hashbuf [8]byte
 		binary.LittleEndian.PutUint64(hashbuf[:], uint64(i))
 		var oldLink *ipld.Link
+		// FIXME: This is wrong for childsPerNode/DefaultShardWidth different
+		//  than 256 (i.e., one byte of key per level).
 		oldLink, err = rootShard.SetAndPrevious(context.Background(), string(hashbuf[:treeHeight]), unixfs.EmptyFileNode())
 		if err != nil {
 			return nil, err

@@ -73,7 +73,7 @@ func TestCreateCompleteShard(t *testing.T) {
 	treeHeight := 2 // This is the limit of what we can fastly generate,
 	// the default width is too big (256). We may need to refine
 	// CreateCompleteHAMT encoding of the key to reduce the tableSize.
-	node, err := CreateCompleteHAMT(ds, treeHeight)
+	node, err := CreateCompleteHAMT(ds, treeHeight, 256)
 	assert.NoError(t, err)
 
 	shard, err := NewHamtFromDag(ds, node)

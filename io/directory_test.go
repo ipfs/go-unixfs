@@ -120,7 +120,7 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 
 func TestHAMTDirectory_sizeChange(t *testing.T) {
 	ds := mdtest.Mock()
-	hamtDir, err := newEmptyHAMTDirectory(ds)
+	hamtDir, err := newEmptyHAMTDirectory(ds, DefaultShardWidth)
 	assert.NoError(t, err)
 
 	testDirectorySizeEstimation(t, hamtDir, ds, func(dir Directory) int {
@@ -292,7 +292,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	assert.NoError(t, err)
 
 	basicDir := newEmptyBasicDirectory(ds)
-	hamtDir, err := newEmptyHAMTDirectory(ds)
+	hamtDir, err := newEmptyHAMTDirectory(ds, DefaultShardWidth)
 	assert.NoError(t, err)
 	for i := 0; i < 1000; i++ {
 		basicDir.AddChild(ctx, strconv.FormatUint(uint64(i), 10), child)
@@ -300,7 +300,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	}
 	compareDirectoryEntries(t, basicDir, hamtDir)
 
-	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx)
+	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx, DefaultShardWidth)
 	assert.NoError(t, err)
 	basicDirFromSwitch, err := hamtDir.switchToBasic(ctx)
 	assert.NoError(t, err)
@@ -328,9 +328,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	oldHashFunc := hamt.HAMTHashFunction
 	defer func() { hamt.HAMTHashFunction = oldHashFunc }()
 	hamt.HAMTHashFunction = hamt.IdHash
-	oldShardWidth := DefaultShardWidth
-	defer func() { DefaultShardWidth = oldShardWidth }()
-	DefaultShardWidth = 16 // FIXME: Review number. From 256 to 16 or 8 (if
+	shardWidth := 16 // FIXME: Review number. From 256 to 16 or 8 (if
 	//  (if we fix CreateCompleteHAMT).
 
 	// FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
@@ -353,14 +351,14 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// i.e., directory entries) do we need to reach the threshold.
 	thresholdToWidthRatio := 4
 
-	HAMTShardingSize = DefaultShardWidth * thresholdToWidthRatio
+	HAMTShardingSize = shardWidth * thresholdToWidthRatio
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
 	// we would roughly fetch the following nodes:
 	nodesToFetch := 0
 	// * all layers up to (but not including) the last one with leaf nodes
 	//   (because it's a BFS)
 	for i := 0; i < treeHeight; i++ {
-		nodesToFetch += int(math.Pow(float64(DefaultShardWidth), float64(i)))
+		nodesToFetch += int(math.Pow(float64(shardWidth), float64(i)))
 	}
 	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
 	//    the HAMTShardingSize threshold.
@@ -372,7 +370,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	//  the bottom.
 
 	ds := mdtest.Mock()
-	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, DefaultShardWidth)
+	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
 	assert.NoError(t, err)
 
 	countGetsDS := newCountGetsDS(ds)

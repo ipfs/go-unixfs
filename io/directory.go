@@ -117,8 +117,8 @@ func newHAMTDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (*HAMTDirec
 	}, nil
 }
 
-func newEmptyHAMTDirectory(dserv ipld.DAGService) (*HAMTDirectory, error) {
-	shard, err := hamt.NewShard(dserv, DefaultShardWidth)
+func newEmptyHAMTDirectory(dserv ipld.DAGService, shardWidth int) (*HAMTDirectory, error) {
+	shard, err := hamt.NewShard(dserv, shardWidth)
 	if err != nil {
 		return nil, err
 	}
@@ -340,11 +340,11 @@ func (d *BasicDirectory) GetCidBuilder() cid.Builder {
 }
 
 // SwitchToSharding returns a HAMT implementation of this directory.
-func (d *BasicDirectory) SwitchToSharding(ctx context.Context) (*HAMTDirectory, error) {
+func (d *BasicDirectory) SwitchToSharding(ctx context.Context, shardWidth int) (*HAMTDirectory, error) {
 	hamtDir := new(HAMTDirectory)
 	hamtDir.dserv = d.dserv
 
-	shard, err := hamt.NewShard(d.dserv, DefaultShardWidth)
+	shard, err := hamt.NewShard(d.dserv, shardWidth)
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +593,7 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	if !switchToHAMT {
 		return basicDir.AddChild(ctx, name, nd)
 	}
-	hamtDir, err = basicDir.SwitchToSharding(ctx)
+	hamtDir, err = basicDir.SwitchToSharding(ctx, DefaultShardWidth)
 	if err != nil {
 		return err
 	}

@@ -74,7 +74,7 @@ type Directory interface {
 // (The functions should in that case add a `DAGService` argument.)
 
 // Link size estimation function. For production it's usually the one here
-// but during test we may mock it to Get fixed sizes.
+// but during test we may mock it to get fixed sizes.
 func productionLinkSize(linkName string, linkCid cid.Cid) int {
 	return len(linkName) + linkCid.ByteLen()
 }
@@ -604,18 +604,6 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	d.Directory = hamtDir
 	return nil
 }
-
-// FIXME: Currently unused, will be removed before merging if confirmed.
-//func (d *UpgradeableDirectory) getDagService() ipld.DAGService {
-//	switch v := d.Directory.(type) {
-//	case *BasicDirectory:
-//		return v.dserv
-//	case *HAMTDirectory:
-//		return v.dserv
-//	default:
-//		panic("unknown directory type")
-//	}
-//}
 
 // RemoveChild implements the `Directory` interface. Used in the case where we wrap
 // a HAMTDirectory that might need to be downgraded to a BasicDirectory. The

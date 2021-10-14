@@ -465,39 +465,6 @@ func makeAsyncTrieGetLinks(dagService ipld.DAGService, linkResults chan<- format
 	}
 }
 
-//// same as makeAsyncTrieGetLinks but return all
-//// FIXME: Check how to abstract this.
-//func makeAsyncTrieGetAll(dagService ipld.DAGService, linkResults chan<- format.LinkResult) dag.GetLinks {
-//
-//	return func(ctx context.Context, currentCid cid.Cid) ([]*ipld.Link, error) {
-//		node, err := dagService.Get(ctx, currentCid)
-//		if err != nil {
-//			return nil, err
-//		}
-//		directoryShard, err := NewHamtFromDag(dagService, node)
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		childShards := make([]*ipld.Link, 0, directoryShard.childer.length())
-//		links := directoryShard.childer.links
-//		for idx := range directoryShard.childer.children {
-//			lnk := links[idx]
-//			// We don't care about the link type (shard or value), just count
-//			//  *all* nodes in this HAMT.
-//			emitResult(ctx, linkResults, format.LinkResult{Link: lnk, Err: nil})
-//			lnkLinkType, err := directoryShard.childLinkType(lnk)
-//			if err != nil {
-//				return nil, err
-//			}
-//			if lnkLinkType == shardLink {
-//				childShards = append(childShards, lnk)
-//			}
-//		}
-//		return childShards, nil
-//	}
-//}
-
 func emitResult(ctx context.Context, linkResults chan<- format.LinkResult, r format.LinkResult) {
 	// make sure that context cancel is processed first
 	// the reason is due to the concurrency of EnumerateChildrenAsync

@@ -308,50 +308,58 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	compareDirectoryEntries(t, hamtDir, hamtDirFromSwitch)
 }
 
+// This is the value of concurrent fetches during dag.Walk. Used in
+// test to better predict how many nodes will be fetched.
+var defaultConcurrentFetch = 32
+// FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
+// (We can also pass an explicit concurrency value in `(*Shard).EnumLinksAsync()`
+// and take ownership of this configuration, but departing from the more
+// standard and reliable one in `go-merkledag`.
+
 // Test that we fetch as little nodes as needed to reach the HAMTShardingSize
 // during the sizeBelowThreshold computation.
-// FIXME: Failing in the CI for Ubuntu. This may likely be an indication of race
-//  bug in the code, but `go test -race ./io/` is passing, so probably in the abuse
-//  of static configurations being modified *inside* the tests.
 func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Adjust HAMT global/static options for the test to simplify its logic.
 	// FIXME: These variables weren't designed to be modified and we should
-	//  review in depth side effects (like the probable Ubuntu error).
+	//  review in depth side effects.
+
 	// Set all link sizes to a uniform 1 so the estimated directory size
 	// is just the count of its entry links (in HAMT/Shard terminology these
 	// are the "value" links pointing to anything that is *not* another Shard).
 	estimatedLinkSize = mockLinkSizeFunc(1)
 	defer func() { estimatedLinkSize = productionLinkSize }()
+
 	// Use an identity hash function to ease the construction of "complete" HAMTs
 	// (see CreateCompleteHAMT below for more details). (Ideally this should be
 	// a parameter we pass and not a global option we modify in the caller.)
 	oldHashFunc := hamt.HAMTHashFunction
 	defer func() { hamt.HAMTHashFunction = oldHashFunc }()
 	hamt.HAMTHashFunction = hamt.IdHash
-	shardWidth := 16 // FIXME: Review number. From 256 to 16 or 8 (if
-	//  (if we fix CreateCompleteHAMT).
 
-	// FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
-	// (We can also pass an explicit concurrency value in `(*Shard).EnumLinksAsync()`
-	// and take ownership of this configuration, but departing from the more
-	// standard and reliable one in `go-merkledag`.
-	defaultConcurrentFetch := 32
-	// FIXME: Also move this to the bottom in the margin computation; clear
-	//  this estimation as much as possible.
+	oldHamtOption := HAMTShardingSize
+	defer func() { HAMTShardingSize = oldHamtOption }()
+
+	// --- End of test static configuration adjustments. ---
+
+	// Some arbitrary values below that make this test not that expensive.
+	treeHeight := 3
+	// How many leaf shards nodes (with value links,
+	// i.e., directory entries) do we need to reach the threshold.
+	thresholdToWidthRatio := 4
+	// Departing from DefaultShardWidth of 256 to reduce HAMT size in
+	// CreateCompleteHAMT.
+	// FIXME: Review number.
+	shardWidth := 16
+	HAMTShardingSize = shardWidth * thresholdToWidthRatio
 
 	// We create a "complete" HAMT (see CreateCompleteHAMT for more details)
 	// with a regular structure to be able to predict how many Shard nodes we
 	// will need to fetch in order to reach the HAMTShardingSize threshold in
 	// sizeBelowThreshold (assuming a sequential DAG walk function).
-	oldHamtOption := HAMTShardingSize
-	defer func() { HAMTShardingSize = oldHamtOption }()
-	// (Some arbitrary values below that make this test not that expensive.)
-	treeHeight := 3 // FIXME: Review number. From 2 to 3.
-	// How many leaf shards nodes (with value links,
-	// i.e., directory entries) do we need to reach the threshold.
-	thresholdToWidthRatio := 4
+	ds := mdtest.Mock()
+	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
+	assert.NoError(t, err)
 
-	HAMTShardingSize = shardWidth * thresholdToWidthRatio
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
 	// we would roughly fetch the following nodes:
 	nodesToFetch := 0
@@ -363,15 +371,6 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
 	//    the HAMTShardingSize threshold.
 	nodesToFetch += thresholdToWidthRatio
-	// * `defaultConcurrentFetch` potential extra nodes of the threads working
-	//    in parallel
-	nodesToFetch += defaultConcurrentFetch
-	// FIXME: Maybe remove it from this variable and push it to the margin at
-	//  the bottom.
-
-	ds := mdtest.Mock()
-	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
-	assert.NoError(t, err)
 
 	countGetsDS := newCountGetsDS(ds)
 	hamtDir, err := newHAMTDirectoryFromNode(countGetsDS, completeHAMTRoot)
@@ -379,20 +378,19 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 
 	countGetsDS.resetCounter()
 	countGetsDS.setRequestDelay(10 * time.Millisecond)
-	// FIXME: Only works with sequential DAG walk (now hardcoded, needs to be
-	//  added to the internal API) where we can predict the Get requests and
-	//  tree traversal. It would be desirable to have some test for the concurrent
-	//  walk (which is the one used in production).
-	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
-	assert.NoError(t, err)
-	assert.False(t, below)
-	t.Logf("fetched %d/%d nodes", countGetsDS.uniqueCidsFetched(), nodesToFetch)
-	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch)
-	assert.True(t, countGetsDS.uniqueCidsFetched() >= nodesToFetch-defaultConcurrentFetch)
 	// (Without the `setRequestDelay` above the number of nodes fetched
 	//  drops dramatically and unpredictably as the BFS starts to behave
 	//  more like a DFS because some search paths are fetched faster than
 	//  others.)
+	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
+	assert.NoError(t, err)
+	assert.False(t, below)
+	t.Logf("fetched %d/%d nodes (actual/predicted)", countGetsDS.uniqueCidsFetched(), nodesToFetch)
+	// Check that the actual number of nodes fetched is within the margin of the
+	// estimated `nodesToFetch` plus an extra of `defaultConcurrentFetch` since
+	// we are fetching in parallel.
+	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch + defaultConcurrentFetch)
+	assert.True(t, countGetsDS.uniqueCidsFetched() >= nodesToFetch)
 }
 
 // Compare entries in the leftDir against the rightDir and possibly

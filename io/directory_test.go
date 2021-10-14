@@ -310,7 +310,6 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 
 // Test that we fetch as little nodes as needed to reach the HAMTShardingSize
 // during the sizeBelowThreshold computation.
-// FIXME: This only works for a sequential DAG walk.
 // FIXME: Failing in the CI for Ubuntu. This may likely be an indication of race
 //  bug in the code, but `go test -race ./io/` is passing, so probably in the abuse
 //  of static configurations being modified *inside* the tests.
@@ -339,6 +338,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// and take ownership of this configuration, but departing from the more
 	// standard and reliable one in `go-merkledag`.
 	defaultConcurrentFetch := 32
+	// FIXME: Also move this to the bottom in the margin computation; clear
+	//  this estimation as much as possible.
 
 	// We create a "complete" HAMT (see CreateCompleteHAMT for more details)
 	// with a regular structure to be able to predict how many Shard nodes we
@@ -351,7 +352,6 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// How many leaf shards nodes (with value links,
 	// i.e., directory entries) do we need to reach the threshold.
 	thresholdToWidthRatio := 4
-	// FIXME: Review dag.Walk algorithm to better figure out this estimate.
 
 	HAMTShardingSize = DefaultShardWidth * thresholdToWidthRatio
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
@@ -368,6 +368,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// * `defaultConcurrentFetch` potential extra nodes of the threads working
 	//    in parallel
 	nodesToFetch += defaultConcurrentFetch
+	// FIXME: Maybe remove it from this variable and push it to the margin at
+	//  the bottom.
 
 	ds := mdtest.Mock()
 	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, DefaultShardWidth)

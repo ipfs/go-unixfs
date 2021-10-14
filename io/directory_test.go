@@ -311,6 +311,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 // This is the value of concurrent fetches during dag.Walk. Used in
 // test to better predict how many nodes will be fetched.
 var defaultConcurrentFetch = 32
+
 // FIXME: Taken from private github.com/ipfs/go-merkledag@v0.2.3/merkledag.go.
 // (We can also pass an explicit concurrency value in `(*Shard).EnumLinksAsync()`
 // and take ownership of this configuration, but departing from the more
@@ -389,7 +390,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Check that the actual number of nodes fetched is within the margin of the
 	// estimated `nodesToFetch` plus an extra of `defaultConcurrentFetch` since
 	// we are fetching in parallel.
-	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch + defaultConcurrentFetch)
+	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch+defaultConcurrentFetch)
 	assert.True(t, countGetsDS.uniqueCidsFetched() >= nodesToFetch)
 }
 

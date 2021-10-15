@@ -2,8 +2,11 @@ package hamt
 
 import (
 	"fmt"
-	"github.com/spaolacci/murmur3"
 	"math/bits"
+
+	"github.com/ipfs/go-unixfs/internal"
+
+	"github.com/spaolacci/murmur3"
 )
 
 // hashBits is a helper that allows the reading of the 'next n bits' as an integer.
@@ -13,11 +16,11 @@ type hashBits struct {
 }
 
 func newHashBits(val string) *hashBits {
-	return &hashBits{b: HAMTHashFunction([]byte(val))}
+	return &hashBits{b: internal.HAMTHashFunction([]byte(val))}
 }
 
 func newConsumedHashBits(val string, consumed int) *hashBits {
-	hv := &hashBits{b: HAMTHashFunction([]byte(val))}
+	hv := &hashBits{b: internal.HAMTHashFunction([]byte(val))}
 	hv.consumed = consumed
 	return hv
 }

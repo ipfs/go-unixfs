@@ -23,6 +23,7 @@ package hamt
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-unixfs/internal"
 	"os"
 
 	bitfield "github.com/ipfs/go-bitfield"
@@ -37,9 +38,9 @@ const (
 	HashMurmur3 uint64 = 0x22
 )
 
-// Hash function declared as global variable only for testing purposes.
-// FIXME: We shoul have a cleaner way to replace this during tests.
-var HAMTHashFunction = murmur3Hash
+func init() {
+	internal.HAMTHashFunction = murmur3Hash
+}
 
 func (ds *Shard) IsValueNode() bool {
 	return ds.key != "" && ds.val != nil

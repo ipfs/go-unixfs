@@ -17,7 +17,6 @@ import (
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/go-unixfs/hamt"
 	"github.com/ipfs/go-unixfs/internal"
 	"github.com/ipfs/go-unixfs/private/completehamt"
 
@@ -337,7 +336,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// a parameter we pass and not a global option we modify in the caller.)
 	oldHashFunc := internal.HAMTHashFunction
 	defer func() { internal.HAMTHashFunction = oldHashFunc }()
-	internal.HAMTHashFunction = hamt.IdHash
+	internal.HAMTHashFunction = completehamt.IdHash
 
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()

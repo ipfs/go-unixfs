@@ -78,8 +78,3 @@ func murmur3Hash(val []byte) []byte {
 	h.Write(val)
 	return h.Sum(nil)
 }
-
-// ONLY FOR TESTING: Return the same value as the hash.
-func IdHash(val []byte) []byte {
-	return val
-}

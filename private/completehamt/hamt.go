@@ -69,3 +69,8 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 
 	return rootShard.Node()
 }
+
+// Return the same value as the hash.
+func IdHash(val []byte) []byte {
+	return val
+}

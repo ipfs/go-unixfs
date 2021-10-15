@@ -17,7 +17,9 @@ import (
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/go-unixfs/hamt"
+	"github.com/ipfs/go-unixfs/internal"
+	"github.com/ipfs/go-unixfs/private/completehamt"
+	"github.com/ipfs/go-unixfs/private/linksize"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -134,15 +136,15 @@ func TestHAMTDirectory_sizeChange(t *testing.T) {
 func fullSizeEnumeration(dir Directory) int {
 	size := 0
 	dir.ForEachLink(context.Background(), func(l *ipld.Link) error {
-		size += estimatedLinkSize(l.Name, l.Cid)
+		size += linksize.LinkSizeFunction(l.Name, l.Cid)
 		return nil
 	})
 	return size
 }
 
 func testDirectorySizeEstimation(t *testing.T, dir Directory, ds ipld.DAGService, size func(Directory) int) {
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	ctx := context.Background()
 	child := ft.EmptyFileNode()
@@ -241,8 +243,8 @@ func TestUpgradeableDirectorySwitch(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
 	HAMTShardingSize = 0 // Disable automatic switch at the start.
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	ds := mdtest.Mock()
 	dir := NewDirectory(ds)
@@ -327,15 +329,15 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Set all link sizes to a uniform 1 so the estimated directory size
 	// is just the count of its entry links (in HAMT/Shard terminology these
 	// are the "value" links pointing to anything that is *not* another Shard).
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	// Use an identity hash function to ease the construction of "complete" HAMTs
 	// (see CreateCompleteHAMT below for more details). (Ideally this should be
 	// a parameter we pass and not a global option we modify in the caller.)
-	oldHashFunc := hamt.HAMTHashFunction
-	defer func() { hamt.HAMTHashFunction = oldHashFunc }()
-	hamt.HAMTHashFunction = hamt.IdHash
+	oldHashFunc := internal.HAMTHashFunction
+	defer func() { internal.HAMTHashFunction = oldHashFunc }()
+	internal.HAMTHashFunction = completehamt.IdHash
 
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
@@ -358,7 +360,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// will need to fetch in order to reach the HAMTShardingSize threshold in
 	// sizeBelowThreshold (assuming a sequential DAG walk function).
 	ds := mdtest.Mock()
-	completeHAMTRoot, err := hamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
+	completeHAMTRoot, err := completehamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
 	assert.NoError(t, err)
 
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then

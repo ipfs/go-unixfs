@@ -136,15 +136,15 @@ func TestHAMTDirectory_sizeChange(t *testing.T) {
 func fullSizeEnumeration(dir Directory) int {
 	size := 0
 	dir.ForEachLink(context.Background(), func(l *ipld.Link) error {
-		size += estimatedLinkSize(l.Name, l.Cid)
+		size += internal.LinkSizeFunction(l.Name, l.Cid)
 		return nil
 	})
 	return size
 }
 
 func testDirectorySizeEstimation(t *testing.T, dir Directory, ds ipld.DAGService, size func(Directory) int) {
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	internal.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { internal.LinkSizeFunction = productionLinkSize }()
 
 	ctx := context.Background()
 	child := ft.EmptyFileNode()
@@ -243,8 +243,8 @@ func TestUpgradeableDirectorySwitch(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
 	HAMTShardingSize = 0 // Disable automatic switch at the start.
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	internal.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { internal.LinkSizeFunction = productionLinkSize }()
 
 	ds := mdtest.Mock()
 	dir := NewDirectory(ds)
@@ -329,8 +329,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Set all link sizes to a uniform 1 so the estimated directory size
 	// is just the count of its entry links (in HAMT/Shard terminology these
 	// are the "value" links pointing to anything that is *not* another Shard).
-	estimatedLinkSize = mockLinkSizeFunc(1)
-	defer func() { estimatedLinkSize = productionLinkSize }()
+	internal.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { internal.LinkSizeFunction = productionLinkSize }()
 
 	// Use an identity hash function to ease the construction of "complete" HAMTs
 	// (see CreateCompleteHAMT below for more details). (Ideally this should be

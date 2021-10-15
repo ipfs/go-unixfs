@@ -3,14 +3,16 @@ package io
 import (
 	"context"
 	"fmt"
-	mdag "github.com/ipfs/go-merkledag"
-	format "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/go-unixfs/hamt"
 	"os"
+
+	"github.com/ipfs/go-unixfs/hamt"
+	"github.com/ipfs/go-unixfs/internal"
 
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
+	mdag "github.com/ipfs/go-merkledag"
+	format "github.com/ipfs/go-unixfs"
 )
 
 var log = logging.Logger("unixfs")
@@ -79,7 +81,9 @@ func productionLinkSize(linkName string, linkCid cid.Cid) int {
 	return len(linkName) + linkCid.ByteLen()
 }
 
-var estimatedLinkSize = productionLinkSize
+func init() {
+	internal.LinkSizeFunction = productionLinkSize
+}
 
 // BasicDirectory is the basic implementation of `Directory`. All the entries
 // are stored in a single node.
@@ -191,11 +195,11 @@ func (d *BasicDirectory) computeEstimatedSize() {
 }
 
 func (d *BasicDirectory) addToEstimatedSize(name string, linkCid cid.Cid) {
-	d.estimatedSize += estimatedLinkSize(name, linkCid)
+	d.estimatedSize += internal.LinkSizeFunction(name, linkCid)
 }
 
 func (d *BasicDirectory) removeFromEstimatedSize(name string, linkCid cid.Cid) {
-	d.estimatedSize -= estimatedLinkSize(name, linkCid)
+	d.estimatedSize -= internal.LinkSizeFunction(name, linkCid)
 	if d.estimatedSize < 0 {
 		// Something has gone very wrong. Log an error and recompute the
 		// size from scratch.
@@ -232,10 +236,10 @@ func (d *BasicDirectory) needsToSwitchToHAMTDir(name string, nodeToAdd ipld.Node
 		if err != nil {
 			return false, err
 		}
-		operationSizeChange -= estimatedLinkSize(name, entryToRemove.Cid)
+		operationSizeChange -= internal.LinkSizeFunction(name, entryToRemove.Cid)
 	}
 	if nodeToAdd != nil {
-		operationSizeChange += estimatedLinkSize(name, nodeToAdd.Cid())
+		operationSizeChange += internal.LinkSizeFunction(name, nodeToAdd.Cid())
 	}
 
 	return d.estimatedSize+operationSizeChange >= HAMTShardingSize, nil
@@ -461,11 +465,11 @@ func (d *HAMTDirectory) switchToBasic(ctx context.Context) (*BasicDirectory, err
 }
 
 func (d *HAMTDirectory) addToSizeChange(name string, linkCid cid.Cid) {
-	d.sizeChange += estimatedLinkSize(name, linkCid)
+	d.sizeChange += internal.LinkSizeFunction(name, linkCid)
 }
 
 func (d *HAMTDirectory) removeFromSizeChange(name string, linkCid cid.Cid) {
-	d.sizeChange -= estimatedLinkSize(name, linkCid)
+	d.sizeChange -= internal.LinkSizeFunction(name, linkCid)
 }
 
 // Evaluate a switch from HAMTDirectory to BasicDirectory in case the size will
@@ -488,12 +492,12 @@ func (d *HAMTDirectory) needsToSwitchToBasicDir(ctx context.Context, name string
 		if err != nil {
 			return false, err
 		}
-		operationSizeChange -= estimatedLinkSize(name, entryToRemove.Cid)
+		operationSizeChange -= internal.LinkSizeFunction(name, entryToRemove.Cid)
 	}
 
 	// For the AddEntry case compute the size addition of the new entry.
 	if nodeToAdd != nil {
-		operationSizeChange += estimatedLinkSize(name, nodeToAdd.Cid())
+		operationSizeChange += internal.LinkSizeFunction(name, nodeToAdd.Cid())
 	}
 
 	if d.sizeChange+operationSizeChange >= 0 {
@@ -530,7 +534,7 @@ func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) 
 			return false, linkResult.Err
 		}
 
-		partialSize += estimatedLinkSize(linkResult.Link.Name, linkResult.Link.Cid)
+		partialSize += internal.LinkSizeFunction(linkResult.Link.Name, linkResult.Link.Cid)
 		if partialSize+sizeChange >= HAMTShardingSize {
 			// We have already fetched enough shards to assert we are
 			//  above the threshold, so no need to keep fetching.

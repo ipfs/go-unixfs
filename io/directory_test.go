@@ -122,7 +122,7 @@ func TestBasicDirectory_estimatedSize(t *testing.T) {
 
 func TestHAMTDirectory_sizeChange(t *testing.T) {
 	ds := mdtest.Mock()
-	hamtDir, err := newEmptyHAMTDirectory(ds, defaultShardWidth)
+	hamtDir, err := newEmptyHAMTDirectory(ds, DefaultShardWidth)
 	assert.NoError(t, err)
 
 	testDirectorySizeEstimation(t, hamtDir, ds, func(dir Directory) int {
@@ -294,7 +294,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	assert.NoError(t, err)
 
 	basicDir := newEmptyBasicDirectory(ds)
-	hamtDir, err := newEmptyHAMTDirectory(ds, defaultShardWidth)
+	hamtDir, err := newEmptyHAMTDirectory(ds, DefaultShardWidth)
 	assert.NoError(t, err)
 	for i := 0; i < 1000; i++ {
 		basicDir.AddChild(ctx, strconv.FormatUint(uint64(i), 10), child)
@@ -302,7 +302,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	}
 	compareDirectoryEntries(t, basicDir, hamtDir)
 
-	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx, defaultShardWidth)
+	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx, DefaultShardWidth)
 	assert.NoError(t, err)
 	basicDirFromSwitch, err := hamtDir.switchToBasic(ctx)
 	assert.NoError(t, err)
@@ -349,7 +349,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// How many leaf shards nodes (with value links,
 	// i.e., directory entries) do we need to reach the threshold.
 	thresholdToWidthRatio := 4
-	// Departing from defaultShardWidth of 256 to reduce HAMT size in
+	// Departing from DefaultShardWidth of 256 to reduce HAMT size in
 	// CreateCompleteHAMT.
 	// FIXME: Review number.
 	shardWidth := 16

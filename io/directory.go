@@ -25,9 +25,9 @@ var log = logging.Logger("unixfs")
 // ProtoNode doesn't use the Data field so this estimate is pretty accurate).
 var HAMTShardingSize = 0
 
-// defaultShardWidth is the default value used for hamt sharding width.
+// DefaultShardWidth is the default value used for hamt sharding width.
 // Needs to be a power of two (shard entry size) and multiple of 8 (bitfield size).
-var defaultShardWidth = 256
+var DefaultShardWidth = 256
 
 // Directory defines a UnixFS directory. It is used for creating, reading and
 // editing directories. It allows to work with different directory schemes,
@@ -597,7 +597,7 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	if !switchToHAMT {
 		return basicDir.AddChild(ctx, name, nd)
 	}
-	hamtDir, err = basicDir.SwitchToSharding(ctx, defaultShardWidth)
+	hamtDir, err = basicDir.SwitchToSharding(ctx, DefaultShardWidth)
 	if err != nil {
 		return err
 	}

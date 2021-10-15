@@ -23,14 +23,15 @@ package hamt
 import (
 	"context"
 	"fmt"
-	"github.com/ipfs/go-unixfs/internal"
 	"os"
+
+	format "github.com/ipfs/go-unixfs"
+	"github.com/ipfs/go-unixfs/internal"
 
 	bitfield "github.com/ipfs/go-bitfield"
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
-	format "github.com/ipfs/go-unixfs"
 )
 
 const (

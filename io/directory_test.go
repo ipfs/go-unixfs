@@ -19,6 +19,7 @@ import (
 	ft "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/internal"
 	"github.com/ipfs/go-unixfs/private/completehamt"
+	"github.com/ipfs/go-unixfs/private/linksize"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -135,15 +136,15 @@ func TestHAMTDirectory_sizeChange(t *testing.T) {
 func fullSizeEnumeration(dir Directory) int {
 	size := 0
 	dir.ForEachLink(context.Background(), func(l *ipld.Link) error {
-		size += internal.LinkSizeFunction(l.Name, l.Cid)
+		size += linksize.LinkSizeFunction(l.Name, l.Cid)
 		return nil
 	})
 	return size
 }
 
 func testDirectorySizeEstimation(t *testing.T, dir Directory, ds ipld.DAGService, size func(Directory) int) {
-	internal.LinkSizeFunction = mockLinkSizeFunc(1)
-	defer func() { internal.LinkSizeFunction = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	ctx := context.Background()
 	child := ft.EmptyFileNode()
@@ -242,8 +243,8 @@ func TestUpgradeableDirectorySwitch(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
 	HAMTShardingSize = 0 // Disable automatic switch at the start.
-	internal.LinkSizeFunction = mockLinkSizeFunc(1)
-	defer func() { internal.LinkSizeFunction = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	ds := mdtest.Mock()
 	dir := NewDirectory(ds)
@@ -328,8 +329,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Set all link sizes to a uniform 1 so the estimated directory size
 	// is just the count of its entry links (in HAMT/Shard terminology these
 	// are the "value" links pointing to anything that is *not* another Shard).
-	internal.LinkSizeFunction = mockLinkSizeFunc(1)
-	defer func() { internal.LinkSizeFunction = productionLinkSize }()
+	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
+	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
 
 	// Use an identity hash function to ease the construction of "complete" HAMTs
 	// (see CreateCompleteHAMT below for more details). (Ideally this should be

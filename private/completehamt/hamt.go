@@ -1,10 +1,10 @@
 package completehamt
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
-	"context"
 
 	"github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/hamt"

@@ -62,4 +62,3 @@ func TestHashBitsUneven(t *testing.T) {
 		t.Fatalf("expected 20269, but got %b (%d)", v, v)
 	}
 }
-

@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/ipfs/go-unixfs/internal"
-
+	mh "github.com/multiformats/go-multihash"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -15,12 +14,21 @@ type hashBits struct {
 	consumed int
 }
 
-func newHashBits(val string) *hashBits {
-	return &hashBits{b: internal.HAMTHashFunction([]byte(val))}
+func newHashBits(val string, hashFunc uint64) *hashBits {
+	return newConsumedHashBits(val, 0, hashFunc)
 }
 
-func newConsumedHashBits(val string, consumed int) *hashBits {
-	hv := &hashBits{b: internal.HAMTHashFunction([]byte(val))}
+func newConsumedHashBits(val string, consumed int, hashFunc uint64) *hashBits {
+	var hashed []byte
+	switch hashFunc {
+	case mh.MURMUR3_128:
+		hashed = murmur3Hash([]byte(val))
+	case mh.IDENTITY:
+		hashed = idHash([]byte(val))
+	default:
+		panic(fmt.Sprintf("hash function %d not supported", hashFunc))
+	}
+	hv := &hashBits{b: hashed}
 	hv.consumed = consumed
 	return hv
 }
@@ -77,4 +85,8 @@ func murmur3Hash(val []byte) []byte {
 	h := murmur3.New64()
 	h.Write(val)
 	return h.Sum(nil)
+}
+
+func idHash(val []byte) []byte {
+	return val
 }

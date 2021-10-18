@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/go-unixfs/hamt"
 
 	ipld "github.com/ipfs/go-ipld-format"
+	mh "github.com/multiformats/go-multihash"
 )
 
 // CreateCompleteHAMT creates a HAMT the following properties:
@@ -18,14 +19,6 @@ import (
 // * all internal Shard nodes point only to other Shards (and hence have zero 'value' links).
 // * the total number of 'value' links (directory entries) is:
 //   io.DefaultShardWidth ^ (treeHeight + 1).
-// FIXME: HAMTHashFunction needs to be set to IdHash by the caller. We depend on
-//  this simplification for the current logic to work. (HAMTHashFunction is a
-//  global setting of the package, it is hard-coded in the serialized Shard node
-//  and not allowed to be changed on a per HAMT/Shard basis.)
-//  (If we didn't rehash inside setValue then we could just generate
-//  the fake hash as in io.SetAndPrevious through `newHashBits()` and pass
-//  it as an argument making the hash independent of tree manipulation; that
-//  sounds as the correct way to go in general and we wouldn't need this.)
 func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (ipld.Node, error) {
 	if treeHeight < 1 {
 		panic("treeHeight < 1")
@@ -33,19 +26,15 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 	if treeHeight > 8 {
 		panic("treeHeight > 8: we don't allow a key larger than what can be enconded in a 64-bit word")
 	}
-	//if HAMTHashFunction != IdHash {
-	//	panic("we do not support a hash function other than ID")
-	//}
-	// FIXME: Any clean and simple way to do this? Otherwise remove check.
 
-	rootShard, err := hamt.NewShard(ds, childsPerNode)
+	rootShard, err := hamt.NewShardWithHashFunc(ds, childsPerNode, mh.IDENTITY)
 	if err != nil {
 		return nil, err
 	}
 	// FIXME: Do we need to set the CID builder? Not part of the NewShard
 	//  interface so it shouldn't be mandatory.
 
-	// Assuming we are using the ID hash function we can just insert all
+	// As we are using the ID hash function we can just insert all
 	// the combinations of a byte slice that will reach the desired height.
 	totalChildren := int(math.Pow(float64(childsPerNode), float64(treeHeight)))
 	for i := 0; i < totalChildren; i++ {
@@ -68,9 +57,4 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 	// FIXME: Check depth of every Shard to be sure?
 
 	return rootShard.Node()
-}
-
-// Return the same value as the hash.
-func IdHash(val []byte) []byte {
-	return val
 }

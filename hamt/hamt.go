@@ -26,22 +26,18 @@ import (
 	"os"
 
 	format "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/go-unixfs/internal"
 
 	bitfield "github.com/ipfs/go-bitfield"
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
+	mh "github.com/multiformats/go-multihash"
 )
 
 const (
 	// HashMurmur3 is the multiformats identifier for Murmur3
 	HashMurmur3 uint64 = 0x22
 )
-
-func init() {
-	internal.HAMTHashFunction = murmur3Hash
-}
 
 func (ds *Shard) IsValueNode() bool {
 	return ds.key != "" && ds.val != nil
@@ -81,13 +77,16 @@ type Shard struct {
 
 // NewShard creates a new, empty HAMT shard with the given size.
 func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
+	return NewShardWithHashFunc(dserv, size, mh.MURMUR3_128)
+}
+
+func NewShardWithHashFunc(dserv ipld.DAGService, size int, hashFunc uint64) (*Shard, error) {
 	ds, err := makeShard(dserv, size)
 	if err != nil {
 		return nil, err
 	}
 
-	// FIXME: Make this at least a static configuration for testing.
-	ds.hashFunc = HashMurmur3
+	ds.hashFunc = hashFunc
 	return ds, nil
 }
 
@@ -127,7 +126,7 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 		return nil, fmt.Errorf("node was not a dir shard")
 	}
 
-	if fsn.HashType() != HashMurmur3 {
+	if fsn.HashType() != mh.MURMUR3_128 {
 		return nil, fmt.Errorf("only murmur3 supported as hash function")
 	}
 
@@ -230,7 +229,7 @@ func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
 // name key in this Shard or its children. It also returns the previous link
 // under that name key (if any).
 func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
-	hv := newHashBits(name)
+	hv := newHashBits(name, ds.hashFunc)
 	err := ds.dserv.Add(ctx, node)
 	if err != nil {
 		return nil, err
@@ -258,13 +257,13 @@ func (ds *Shard) Remove(ctx context.Context, name string) error {
 // RemoveAndPrevious is similar to the public Remove but also returns the
 // old removed link (if it exists).
 func (ds *Shard) RemoveAndPrevious(ctx context.Context, name string) (*ipld.Link, error) {
-	hv := newHashBits(name)
+	hv := newHashBits(name, ds.hashFunc)
 	return ds.setValue(ctx, hv, name, nil)
 }
 
 // Find searches for a child node by 'name' within this hamt
 func (ds *Shard) Find(ctx context.Context, name string) (*ipld.Link, error) {
-	hv := newHashBits(name)
+	hv := newHashBits(name, ds.hashFunc)
 
 	var out *ipld.Link
 	err := ds.getValue(ctx, hv, name, func(sv *Shard) error {
@@ -546,12 +545,12 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// will be a child of this new shard (along with the new value being
 		// inserted).
 		grandChild := child
-		child, err = NewShard(ds.dserv, ds.tableSize)
+		child, err = NewShardWithHashFunc(ds.dserv, ds.tableSize, ds.hashFunc)
 		if err != nil {
 			return nil, err
 		}
 		child.builder = ds.builder
-		chhv := newConsumedHashBits(grandChild.key, hv.consumed)
+		chhv := newConsumedHashBits(grandChild.key, hv.consumed, ds.hashFunc)
 
 		// We explicitly ignore the oldValue returned by the next two insertions
 		// (which will be nil) to highlight there is no overwrite here: they are

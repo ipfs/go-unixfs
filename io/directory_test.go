@@ -17,7 +17,6 @@ import (
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
-	"github.com/ipfs/go-unixfs/internal"
 	"github.com/ipfs/go-unixfs/private/completehamt"
 	"github.com/ipfs/go-unixfs/private/linksize"
 
@@ -331,13 +330,6 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// are the "value" links pointing to anything that is *not* another Shard).
 	linksize.LinkSizeFunction = mockLinkSizeFunc(1)
 	defer func() { linksize.LinkSizeFunction = productionLinkSize }()
-
-	// Use an identity hash function to ease the construction of "complete" HAMTs
-	// (see CreateCompleteHAMT below for more details). (Ideally this should be
-	// a parameter we pass and not a global option we modify in the caller.)
-	oldHashFunc := internal.HAMTHashFunction
-	defer func() { internal.HAMTHashFunction = oldHashFunc }()
-	internal.HAMTHashFunction = completehamt.IdHash
 
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()

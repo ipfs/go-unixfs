@@ -31,7 +31,7 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 		panic("treeHeight < 1")
 	}
 	if treeHeight > 8 {
-		panic("treeHeight > 8: we don't allow a key larger than what can be enconded in a 64-bit word")
+		panic("treeHeight > 8: we don't allow a key larger than what can be encoded in a 64-bit word")
 	}
 	//if HAMTHashFunction != IdHash {
 	//	panic("we do not support a hash function other than ID")
@@ -42,8 +42,6 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 	if err != nil {
 		return nil, err
 	}
-	// FIXME: Do we need to set the CID builder? Not part of the NewShard
-	//  interface so it shouldn't be mandatory.
 
 	// Assuming we are using the ID hash function we can just insert all
 	// the combinations of a byte slice that will reach the desired height.
@@ -65,7 +63,6 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 				oldLink.Cid)
 		}
 	}
-	// FIXME: Check depth of every Shard to be sure?
 
 	return rootShard.Node()
 }

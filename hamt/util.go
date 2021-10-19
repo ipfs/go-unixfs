@@ -21,7 +21,7 @@ func newHashBits(val string, hashFunc uint64) *hashBits {
 func newConsumedHashBits(val string, consumed int, hashFunc uint64) *hashBits {
 	var hashed []byte
 	switch hashFunc {
-	case mh.MURMUR3_128:
+	case HashMurmur3:
 		hashed = murmur3Hash([]byte(val))
 	case mh.IDENTITY:
 		hashed = idHash([]byte(val))

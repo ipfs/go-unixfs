@@ -31,11 +31,13 @@ import (
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
-	mh "github.com/multiformats/go-multihash"
 )
 
 const (
-	// HashMurmur3 is the multiformats identifier for Murmur3
+	// Murmur3 hash function constant taken from
+	// https://github.com/multiformats/go-multihash/blob/654b06d7912adbe3b1656dfbf2fb851d182888e1/multihash.go#L68-L70.
+	// We are hard-coding it here because this variable's name is currently
+	// misleading in the global package and that will be resolved independently.
 	HashMurmur3 uint64 = 0x22
 )
 
@@ -77,7 +79,7 @@ type Shard struct {
 
 // NewShard creates a new, empty HAMT shard with the given size.
 func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
-	return NewShardWithHashFunc(dserv, size, mh.MURMUR3_128)
+	return NewShardWithHashFunc(dserv, size, HashMurmur3)
 }
 
 func NewShardWithHashFunc(dserv ipld.DAGService, size int, hashFunc uint64) (*Shard, error) {
@@ -126,7 +128,7 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 		return nil, fmt.Errorf("node was not a dir shard")
 	}
 
-	if fsn.HashType() != mh.MURMUR3_128 {
+	if fsn.HashType() != HashMurmur3 {
 		return nil, fmt.Errorf("only murmur3 supported as hash function")
 	}
 

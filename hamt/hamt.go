@@ -79,10 +79,10 @@ type Shard struct {
 
 // NewShard creates a new, empty HAMT shard with the given size.
 func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
-	return NewShardWithHashFunc(dserv, size, HashMurmur3)
+	return newShardWithHashFunc(dserv, size, HashMurmur3)
 }
 
-func NewShardWithHashFunc(dserv ipld.DAGService, size int, hashFunc uint64) (*Shard, error) {
+func newShardWithHashFunc(dserv ipld.DAGService, size int, hashFunc uint64) (*Shard, error) {
 	ds, err := makeShard(dserv, size)
 	if err != nil {
 		return nil, err
@@ -547,7 +547,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// will be a child of this new shard (along with the new value being
 		// inserted).
 		grandChild := child
-		child, err = NewShardWithHashFunc(ds.dserv, ds.tableSize, ds.hashFunc)
+		child, err = newShardWithHashFunc(ds.dserv, ds.tableSize, ds.hashFunc)
 		if err != nil {
 			return nil, err
 		}

@@ -27,7 +27,7 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 		panic("treeHeight > 8: we don't allow a key larger than what can be enconded in a 64-bit word")
 	}
 
-	rootShard, err := hamt.NewShardWithHashFunc(ds, childsPerNode, mh.IDENTITY)
+	rootShard, err := hamt.newShardWithHashFunc(ds, childsPerNode, mh.IDENTITY)
 	if err != nil {
 		return nil, err
 	}

@@ -345,13 +345,12 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// --- End of test static configuration adjustments. ---
 
 	// Some arbitrary values below that make this test not that expensive.
-	treeHeight := 3
+	treeHeight := 4
 	// How many leaf shards nodes (with value links,
 	// i.e., directory entries) do we need to reach the threshold.
 	thresholdToWidthRatio := 4
 	// Departing from DefaultShardWidth of 256 to reduce HAMT size in
 	// CreateCompleteHAMT.
-	// FIXME: Review number.
 	shardWidth := 16
 	HAMTShardingSize = shardWidth * thresholdToWidthRatio
 
@@ -368,7 +367,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	nodesToFetch := 0
 	// * all layers up to (but not including) the last one with leaf nodes
 	//   (because it's a BFS)
-	for i := 0; i < treeHeight; i++ {
+	for i := 0; i < treeHeight-1; i++ {
 		nodesToFetch += int(math.Pow(float64(shardWidth), float64(i)))
 	}
 	// * `thresholdToWidthRatio` leaf Shards with enough value links to reach
@@ -388,7 +387,8 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	below, err := hamtDir.sizeBelowThreshold(context.TODO(), 0)
 	assert.NoError(t, err)
 	assert.False(t, below)
-	t.Logf("fetched %d/%d nodes (actual/predicted)", countGetsDS.uniqueCidsFetched(), nodesToFetch)
+	t.Logf("fetched %d nodes (predicted range: %d-%d)",
+		countGetsDS.uniqueCidsFetched(), nodesToFetch, nodesToFetch+defaultConcurrentFetch)
 	// Check that the actual number of nodes fetched is within the margin of the
 	// estimated `nodesToFetch` plus an extra of `defaultConcurrentFetch` since
 	// we are fetching in parallel.

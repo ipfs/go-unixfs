@@ -92,7 +92,7 @@ func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
 }
 
 func makeShard(ds ipld.DAGService, size int) (*Shard, error) {
-	lg2s, err := logtwo(size)
+	lg2s, err := Logtwo(size)
 	if err != nil {
 		return nil, err
 	}

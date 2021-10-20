@@ -46,13 +46,19 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 	// Assuming we are using the ID hash function we can just insert all
 	// the combinations of a byte slice that will reach the desired height.
 	totalChildren := int(math.Pow(float64(childsPerNode), float64(treeHeight)))
+	log2ofChilds, err := hamt.Logtwo(childsPerNode)
+	if err != nil {
+		return nil, err
+	}
+	if log2ofChilds*treeHeight%8 != 0 {
+		return nil, fmt.Errorf("childsPerNode * treeHeight should be multiple of 8")
+	}
+	bytesInKey := log2ofChilds * treeHeight / 8
 	for i := 0; i < totalChildren; i++ {
 		var hashbuf [8]byte
 		binary.LittleEndian.PutUint64(hashbuf[:], uint64(i))
 		var oldLink *ipld.Link
-		// FIXME: This is wrong for childsPerNode/DefaultShardWidth different
-		//  than 256 (i.e., one byte of key per level).
-		oldLink, err = rootShard.SetAndPrevious(context.Background(), string(hashbuf[:treeHeight]), unixfs.EmptyFileNode())
+		oldLink, err = rootShard.SetAndPrevious(context.Background(), string(hashbuf[:bytesInKey]), unixfs.EmptyFileNode())
 		if err != nil {
 			return nil, err
 		}

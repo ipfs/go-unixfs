@@ -62,7 +62,7 @@ func (hb *hashBits) next(i int) int {
 	}
 }
 
-func logtwo(v int) (int, error) {
+func Logtwo(v int) (int, error) {
 	if v <= 0 {
 		return 0, fmt.Errorf("hamt size should be a power of two")
 	}

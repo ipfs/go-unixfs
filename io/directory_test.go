@@ -17,6 +17,7 @@ import (
 	mdtest "github.com/ipfs/go-merkledag/test"
 
 	ft "github.com/ipfs/go-unixfs"
+	"github.com/ipfs/go-unixfs/hamt"
 	"github.com/ipfs/go-unixfs/internal"
 	"github.com/ipfs/go-unixfs/private/completehamt"
 	"github.com/ipfs/go-unixfs/private/linksize"
@@ -509,6 +510,29 @@ func TestDirBuilder(t *testing.T) {
 	if len(asyncLinks) != count {
 		t.Fatal("wrong number of links", len(asyncLinks), count)
 	}
+}
+
+func newHAMTDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (*HAMTDirectory, error) {
+	shard, err := hamt.NewHamtFromDag(dserv, node)
+	if err != nil {
+		return nil, err
+	}
+	return &HAMTDirectory{
+		dserv: dserv,
+		shard: shard,
+	}, nil
+}
+
+func newEmptyHAMTDirectory(dserv ipld.DAGService, shardWidth int) (*HAMTDirectory, error) {
+	shard, err := hamt.NewShard(dserv, shardWidth)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HAMTDirectory{
+		dserv: dserv,
+		shard: shard,
+	}, nil
 }
 
 // countGetsDS is a DAG service that keeps track of the number of

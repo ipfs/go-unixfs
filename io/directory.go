@@ -110,29 +110,6 @@ type HAMTDirectory struct {
 	sizeChange int
 }
 
-func newHAMTDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (*HAMTDirectory, error) {
-	shard, err := hamt.NewHamtFromDag(dserv, node)
-	if err != nil {
-		return nil, err
-	}
-	return &HAMTDirectory{
-		dserv: dserv,
-		shard: shard,
-	}, nil
-}
-
-func newEmptyHAMTDirectory(dserv ipld.DAGService, shardWidth int) (*HAMTDirectory, error) {
-	shard, err := hamt.NewShard(dserv, shardWidth)
-	if err != nil {
-		return nil, err
-	}
-
-	return &HAMTDirectory{
-		dserv: dserv,
-		shard: shard,
-	}, nil
-}
-
 func newEmptyBasicDirectory(dserv ipld.DAGService) *BasicDirectory {
 	return newBasicDirectoryFromNode(dserv, format.EmptyDirNode())
 }

@@ -389,29 +389,6 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 	return linkResults
 }
 
-// EnumLinksAsync returns a channel which will receive Links in the directory
-// as they are enumerated, where order is not guaranteed
-func (ds *Shard) EnumAllAsync(ctx context.Context) <-chan format.LinkResult {
-	linkResults := make(chan format.LinkResult)
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		defer close(linkResults)
-		defer cancel()
-		getLinks := makeAsyncTrieGetLinks(ds.dserv, linkResults)
-		cset := cid.NewSet()
-		rootNode, err := ds.Node()
-		if err != nil {
-			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
-			return
-		}
-		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit, dag.Concurrent())
-		if err != nil {
-			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
-		}
-	}()
-	return linkResults
-}
-
 // makeAsyncTrieGetLinks builds a getLinks function that can be used with EnumerateChildrenAsync
 // to iterate a HAMT shard. It takes an IPLD Dag Service to fetch nodes, and a call back that will get called
 // on all links to leaf nodes in a HAMT tree, so they can be collected for an EnumLinks operation

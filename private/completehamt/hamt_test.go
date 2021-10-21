@@ -20,7 +20,7 @@ func TestCreateCompleteShard(t *testing.T) {
 
 	shard, err := hamt.NewHamtFromDag(ds, node)
 	assert.NoError(t, err)
-	links, err := shard.EnumAll(context.Background())
+	links, err := shard.EnumLinks(context.Background())
 	assert.NoError(t, err)
 
 	childNodes := int(math.Pow(float64(childsPerNode), float64(treeHeight)))

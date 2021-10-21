@@ -43,7 +43,7 @@ func init() {
 	internal.HAMTHashFunction = murmur3Hash
 }
 
-func (ds *Shard) IsValueNode() bool {
+func (ds *Shard) isValueNode() bool {
 	return ds.key != "" && ds.val != nil
 }
 
@@ -298,7 +298,7 @@ func (ds *Shard) childLinkType(lnk *ipld.Link) (linkType, error) {
 
 // Link returns a merklelink to this shard node
 func (ds *Shard) Link() (*ipld.Link, error) {
-	if ds.IsValueNode() {
+	if ds.isValueNode() {
 		return ds.val, nil
 	}
 
@@ -327,7 +327,7 @@ func (ds *Shard) getValue(ctx context.Context, hv *hashBits, key string, cb func
 			return err
 		}
 
-		if child.IsValueNode() {
+		if child.isValueNode() {
 			if child.key == key {
 				return cb(child)
 			}
@@ -344,21 +344,6 @@ func (ds *Shard) EnumLinks(ctx context.Context) ([]*ipld.Link, error) {
 	var links []*ipld.Link
 
 	linkResults := ds.EnumLinksAsync(ctx)
-
-	for linkResult := range linkResults {
-		if linkResult.Err != nil {
-			return links, linkResult.Err
-		}
-		links = append(links, linkResult.Link)
-	}
-	return links, nil
-}
-
-// FIXME: Check which functions do we need to actually expose.
-func (ds *Shard) EnumAll(ctx context.Context) ([]*ipld.Link, error) {
-	var links []*ipld.Link
-
-	linkResults := ds.EnumAllAsync(ctx)
 
 	for linkResult := range linkResults {
 		if linkResult.Err != nil {
@@ -485,7 +470,7 @@ func emitResult(ctx context.Context, linkResults chan<- format.LinkResult, r for
 
 func (ds *Shard) walkTrie(ctx context.Context, cb func(*Shard) error) error {
 	return ds.childer.each(ctx, func(s *Shard) error {
-		if s.IsValueNode() {
+		if s.isValueNode() {
 			if err := cb(s); err != nil {
 				return err
 			}
@@ -517,7 +502,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		return
 	}
 
-	if child.IsValueNode() {
+	if child.isValueNode() {
 		// Leaf node. This is the base case of this recursive function.
 		if child.key == key {
 			// We are in the correct shard (tree level) so we modify this child
@@ -595,7 +580,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 				// Have we loaded the child? Prefer that.
 				schild := child.childer.child(0)
 				if schild != nil {
-					if schild.IsValueNode() {
+					if schild.isValueNode() {
 						ds.childer.set(schild, i)
 					}
 					return

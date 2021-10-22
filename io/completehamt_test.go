@@ -1,10 +1,14 @@
-package completehamt
+package io
 
 import (
 	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
+	"testing"
+
+	mdtest "github.com/ipfs/go-merkledag/test"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/hamt"
@@ -18,7 +22,7 @@ import (
 // * all internal Shard nodes point only to other Shards (and hence have zero 'value' links).
 // * the total number of 'value' links (directory entries) is:
 //   io.DefaultShardWidth ^ (treeHeight + 1).
-// FIXME: HAMTHashFunction needs to be set to IdHash by the caller. We depend on
+// FIXME: HAMTHashFunction needs to be set to idHash by the caller. We depend on
 //  this simplification for the current logic to work. (HAMTHashFunction is a
 //  global setting of the package, it is hard-coded in the serialized Shard node
 //  and not allowed to be changed on a per HAMT/Shard basis.)
@@ -33,10 +37,6 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 	if treeHeight > 8 {
 		panic("treeHeight > 8: we don't allow a key larger than what can be encoded in a 64-bit word")
 	}
-	//if HAMTHashFunction != IdHash {
-	//	panic("we do not support a hash function other than ID")
-	//}
-	// FIXME: Any clean and simple way to do this? Otherwise remove check.
 
 	rootShard, err := hamt.NewShard(ds, childsPerNode)
 	if err != nil {
@@ -74,6 +74,22 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 }
 
 // Return the same value as the hash.
-func IdHash(val []byte) []byte {
+func idHash(val []byte) []byte {
 	return val
+}
+
+func TestCreateCompleteShard(t *testing.T) {
+	ds := mdtest.Mock()
+	childsPerNode := 16
+	treeHeight := 2
+	node, err := CreateCompleteHAMT(ds, treeHeight, childsPerNode)
+	assert.NoError(t, err)
+
+	shard, err := hamt.NewHamtFromDag(ds, node)
+	assert.NoError(t, err)
+	links, err := shard.EnumLinks(context.Background())
+	assert.NoError(t, err)
+
+	childNodes := int(math.Pow(float64(childsPerNode), float64(treeHeight)))
+	assert.Equal(t, childNodes, len(links))
 }

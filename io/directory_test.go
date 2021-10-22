@@ -19,7 +19,6 @@ import (
 	ft "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/hamt"
 	"github.com/ipfs/go-unixfs/internal"
-	"github.com/ipfs/go-unixfs/private/completehamt"
 	"github.com/ipfs/go-unixfs/private/linksize"
 
 	"github.com/stretchr/testify/assert"
@@ -338,7 +337,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// a parameter we pass and not a global option we modify in the caller.)
 	oldHashFunc := internal.HAMTHashFunction
 	defer func() { internal.HAMTHashFunction = oldHashFunc }()
-	internal.HAMTHashFunction = completehamt.IdHash
+	internal.HAMTHashFunction = idHash
 
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()
@@ -360,7 +359,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// will need to fetch in order to reach the HAMTShardingSize threshold in
 	// sizeBelowThreshold (assuming a sequential DAG walk function).
 	ds := mdtest.Mock()
-	completeHAMTRoot, err := completehamt.CreateCompleteHAMT(ds, treeHeight, shardWidth)
+	completeHAMTRoot, err := CreateCompleteHAMT(ds, treeHeight, shardWidth)
 	assert.NoError(t, err)
 
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then

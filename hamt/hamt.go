@@ -25,17 +25,23 @@ import (
 	"fmt"
 	"os"
 
+	format "github.com/ipfs/go-unixfs"
+	"github.com/ipfs/go-unixfs/internal"
+
 	bitfield "github.com/ipfs/go-bitfield"
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	dag "github.com/ipfs/go-merkledag"
-	format "github.com/ipfs/go-unixfs"
 )
 
 const (
 	// HashMurmur3 is the multiformats identifier for Murmur3
 	HashMurmur3 uint64 = 0x22
 )
+
+func init() {
+	internal.HAMTHashFunction = murmur3Hash
+}
 
 func (ds *Shard) isValueNode() bool {
 	return ds.key != "" && ds.val != nil
@@ -45,17 +51,29 @@ func (ds *Shard) isValueNode() bool {
 type Shard struct {
 	childer *childer
 
-	tableSize    int
+	// Entries per node (number of possible childs indexed by the partial key).
+	tableSize int
+	// Bits needed to encode child indexes (log2 of number of entries). This is
+	// the number of bits taken from the hash key on each level of the tree.
 	tableSizeLg2 int
 
 	builder  cid.Builder
 	hashFunc uint64
 
+	// String format with number of zeros that will be present in the hexadecimal
+	// encoding of the child index to always reach the fixed maxpadlen chars.
+	// Example: maxpadlen = 4 => prefixPadStr: "%04X" (print number in hexadecimal
+	// format padding with zeros to always reach 4 characters).
 	prefixPadStr string
-	maxpadlen    int
+	// Length in chars of string that encodes child indexes. We encode indexes
+	// as hexadecimal strings to this is log4 of number of entries.
+	maxpadlen int
 
 	dserv ipld.DAGService
 
+	// FIXME: Remove. We don't actually store "value nodes". This confusing
+	//  abstraction just removes the maxpadlen from the link names to extract
+	//  the actual value link the trie is storing.
 	// leaf node
 	key string
 	val *ipld.Link
@@ -68,12 +86,13 @@ func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
 		return nil, err
 	}
 
+	// FIXME: Make this at least a static configuration for testing.
 	ds.hashFunc = HashMurmur3
 	return ds, nil
 }
 
 func makeShard(ds ipld.DAGService, size int) (*Shard, error) {
-	lg2s, err := logtwo(size)
+	lg2s, err := Logtwo(size)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +230,7 @@ func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
 // name key in this Shard or its children. It also returns the previous link
 // under that name key (if any).
 func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
-	hv := &hashBits{b: hash([]byte(name))}
+	hv := newHashBits(name)
 	err := ds.dserv.Add(ctx, node)
 	if err != nil {
 		return nil, err
@@ -221,6 +240,9 @@ func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node
 	if err != nil {
 		return nil, err
 	}
+
+	// FIXME: We don't need to set the name here, it will get overwritten.
+	//  This is confusing, confirm and remove this line.
 	lnk.Name = ds.linkNamePrefix(0) + name
 
 	return ds.setValue(ctx, hv, name, lnk)
@@ -236,13 +258,13 @@ func (ds *Shard) Remove(ctx context.Context, name string) error {
 // RemoveAndPrevious is similar to the public Remove but also returns the
 // old removed link (if it exists).
 func (ds *Shard) RemoveAndPrevious(ctx context.Context, name string) (*ipld.Link, error) {
-	hv := &hashBits{b: hash([]byte(name))}
+	hv := newHashBits(name)
 	return ds.setValue(ctx, hv, name, nil)
 }
 
 // Find searches for a child node by 'name' within this hamt
 func (ds *Shard) Find(ctx context.Context, name string) (*ipld.Link, error) {
-	hv := &hashBits{b: hash([]byte(name))}
+	hv := newHashBits(name)
 
 	var out *ipld.Link
 	err := ds.getValue(ctx, hv, name, func(sv *Shard) error {
@@ -489,10 +511,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 			return nil, err
 		}
 		child.builder = ds.builder
-		chhv := &hashBits{
-			b:        hash([]byte(grandChild.key)),
-			consumed: hv.consumed,
-		}
+		chhv := newConsumedHashBits(grandChild.key, hv.consumed)
 
 		// We explicitly ignore the oldValue returned by the next two insertions
 		// (which will be nil) to highlight there is no overwrite here: they are

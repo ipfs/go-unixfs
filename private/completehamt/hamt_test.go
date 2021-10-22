@@ -24,7 +24,5 @@ func TestCreateCompleteShard(t *testing.T) {
 	assert.NoError(t, err)
 
 	childNodes := int(math.Pow(float64(childsPerNode), float64(treeHeight)))
-	//internalNodes := int(math.Pow(float64(childsPerNode), float64(treeHeight-1)))
-	//totalNodes := childNodes + internalNodes
 	assert.Equal(t, childNodes, len(links))
 }

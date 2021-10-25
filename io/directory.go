@@ -8,6 +8,7 @@ import (
 	"github.com/ipfs/go-unixfs/hamt"
 	"github.com/ipfs/go-unixfs/private/linksize"
 
+	"github.com/alecthomas/units"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log"
@@ -23,7 +24,7 @@ var log = logging.Logger("unixfs")
 // The size is not the *exact* block size of the encoded BasicDirectory but just
 // the estimated size based byte length of links name and CID (BasicDirectory's
 // ProtoNode doesn't use the Data field so this estimate is pretty accurate).
-var HAMTShardingSize = 0
+var HAMTShardingSize = int(256 * units.KiB)
 
 // DefaultShardWidth is the default value used for hamt sharding width.
 // Needs to be a power of two (shard entry size) and multiple of 8 (bitfield size).

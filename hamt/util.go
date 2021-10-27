@@ -6,6 +6,8 @@ import (
 
 	"github.com/ipfs/go-unixfs/internal"
 
+	"github.com/ipfs/go-cid"
+	"github.com/multiformats/go-multihash"
 	"github.com/spaolacci/murmur3"
 )
 
@@ -77,4 +79,49 @@ func murmur3Hash(val []byte) []byte {
 	h := murmur3.New64()
 	h.Write(val)
 	return h.Sum(nil)
+}
+
+// We convert CIDs to arbitrary strings as CIDv1 raw identity hashes.
+func packBytesIntoCID(data []byte) cid.Cid {
+	h, err := multihash.Sum(data, multihash.IDENTITY, -1)
+	if err != nil {
+		panic(fmt.Sprintf("error while packing data %s: %s",
+			data, err))
+	}
+	return cid.NewCidV1(cid.Raw, h)
+}
+
+func unpackBytesFromCID(c cid.Cid) []byte {
+	if c.Version() != 1 {
+		panic("trying to unpack CIDv0")
+	}
+	decoded, err := multihash.Decode(c.Hash())
+	if err != nil {
+		panic(fmt.Sprintf("error while unpacking data from CID %s: %s",
+			c, err))
+	}
+	return decoded.Digest
+}
+
+// Coordinate in a HAMT to single out a single node.
+// For simplicity this is independent of the hash the node encodes and just
+// the position in the nodes.
+// See `getLinksHAMTNode` for details.
+type hamtPos struct {
+	// Slice of child positions (from the immediate parent perspective).
+	// FIXME: We are assuming a shard width <= 256 (the default) to easily
+	//  convert to and from a byte slice.
+	childSlicePos []byte
+}
+
+func (hp *hamtPos) addChildPos(childIndex int) *hamtPos {
+	return &hamtPos{ append(hp.childSlicePos, byte(childIndex))}
+}
+
+func posFromBytes(data []byte) *hamtPos{
+	return &hamtPos{data}
+}
+
+func posToBytes(hp *hamtPos) []byte {
+	return hp.childSlicePos
 }

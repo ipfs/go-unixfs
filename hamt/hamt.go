@@ -582,46 +582,6 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 	}
 }
 
-// makeAsyncTrieGetLinks builds a getLinks function that can be used with EnumerateChildrenAsync
-// to iterate a HAMT shard. It takes an IPLD Dag Service to fetch nodes, and a call back that will get called
-// on all links to leaf nodes in a HAMT tree, so they can be collected for an EnumLinks operation
-func makeAsyncTrieGetLinks(dagService ipld.DAGService, linkResults chan<- format.LinkResult) dag.GetLinks {
-
-	return func(ctx context.Context, currentCid cid.Cid) ([]*ipld.Link, error) {
-		node, err := dagService.Get(ctx, currentCid)
-		if err != nil {
-			return nil, err
-		}
-		directoryShard, err := NewHamtFromDag(dagService, node)
-		if err != nil {
-			return nil, err
-		}
-
-		childShards := make([]*ipld.Link, 0, directoryShard.childer.length())
-		links := directoryShard.childer.links
-		for idx := range directoryShard.childer.children {
-			lnk := links[idx]
-			lnkLinkType, err := directoryShard.childLinkType(lnk)
-
-			if err != nil {
-				return nil, err
-			}
-			if lnkLinkType == shardLink {
-				childShards = append(childShards, lnk)
-			} else {
-				sv, err := directoryShard.makeShardValue(lnk)
-				if err != nil {
-					return nil, err
-				}
-				formattedLink := sv.val
-				formattedLink.Name = sv.key
-				emitResult(ctx, linkResults, format.LinkResult{Link: formattedLink, Err: nil})
-			}
-		}
-		return childShards, nil
-	}
-}
-
 func emitResult(ctx context.Context, linkResults chan<- format.LinkResult, r format.LinkResult) {
 	// make sure that context cancel is processed first
 	// the reason is due to the concurrency of EnumerateChildrenAsync

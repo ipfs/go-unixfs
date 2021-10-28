@@ -540,11 +540,21 @@ dispatcherLoop:
 				break dispatcherLoop
 			}
 		case nextNodes := <-out:
-			if next == nil {
-				next = nextNodes
-				send = feed
-			} else {
-				todoQueue = append(todoQueue, nextNodes)
+			for _, link := range nextNodes.links {
+				if next == nil {
+					next = &listCidShardUnion{links: []cid.Cid{link}}
+					send = feed
+				} else {
+					todoQueue = append(todoQueue, &listCidShardUnion{links: []cid.Cid{link}})
+				}
+			}
+			for _, shard := range nextNodes.shards {
+				if next == nil {
+					next = &listCidShardUnion{shards: []*Shard{shard}}
+					send = feed
+				} else {
+					todoQueue = append(todoQueue, &listCidShardUnion{shards: []*Shard{shard}})
+				}
 			}
 		case <-errGrpCtx.Done():
 			break dispatcherLoop

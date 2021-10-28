@@ -26,6 +26,8 @@ import (
 	"os"
 	"sync"
 
+	"golang.org/x/sync/errgroup"
+
 	format "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/internal"
 
@@ -438,91 +440,71 @@ func (ds *Shard) walkLinks(processLinkValues func(formattedLink *ipld.Link) erro
 
 func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, processShardValues func(formattedLink *ipld.Link) error) error {
 	const concurrency = 32
-	visit := cid.NewSet().Visit
+
+	var visitlk sync.Mutex
+	visitSet := cid.NewSet()
+	visit := visitSet.Visit
 
 	type shardCidUnion struct {
 		cid   cid.Cid
 		shard *Shard
 	}
 
+	// Setup synchronization
+	grp, errGrpCtx := errgroup.WithContext(ctx)
+
+	// Input and output queues for workers.
 	feed := make(chan *shardCidUnion)
 	out := make(chan *listCidShardUnion)
 	done := make(chan struct{})
 
-	var visitlk sync.Mutex
-	var wg sync.WaitGroup
-
-	errChan := make(chan error)
-	fetchersCtx, cancel := context.WithCancel(ctx)
-	defer wg.Wait()
-	defer cancel()
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for cdepth := range feed {
+		grp.Go(func() error {
+			for shardOrCID := range feed {
 				var shouldVisit bool
 
-				if cdepth.shard != nil {
+				if shardOrCID.shard != nil {
 					shouldVisit = true
 				} else {
 					visitlk.Lock()
-					shouldVisit = visit(cdepth.cid)
+					shouldVisit = visit(shardOrCID.cid)
 					visitlk.Unlock()
 				}
 
 				if shouldVisit {
 					var nextShard *Shard
-					if cdepth.shard != nil {
-						nextShard = cdepth.shard
+					if shardOrCID.shard != nil {
+						nextShard = shardOrCID.shard
 					} else {
-						nd, err := dserv.Get(ctx, cdepth.cid)
+						nd, err := dserv.Get(ctx, shardOrCID.cid)
 						if err != nil {
-							if err != nil {
-								select {
-								case errChan <- err:
-								case <-fetchersCtx.Done():
-								}
-								return
-							}
+							return err
 						}
 						nextShard, err = NewHamtFromDag(dserv, nd)
 						if err != nil {
-							if err != nil {
-								if err != nil {
-									select {
-									case errChan <- err:
-									case <-fetchersCtx.Done():
-									}
-									return
-								}
-							}
+							return err
 						}
 					}
 
 					nextLinks, err := nextShard.walkLinks(processShardValues)
 					if err != nil {
-						select {
-						case errChan <- err:
-						case <-fetchersCtx.Done():
-						}
-						return
+						return err
 					}
 
 					select {
 					case out <- nextLinks:
-					case <-fetchersCtx.Done():
-						return
+					case <-errGrpCtx.Done():
+						return nil
 					}
 				}
 				select {
 				case done <- struct{}{}:
-				case <-fetchersCtx.Done():
+				case <-errGrpCtx.Done():
 				}
 			}
-		}()
+			return nil
+		})
 	}
-	defer close(feed)
 
 	send := feed
 	var todoQueue []*shardCidUnion
@@ -532,6 +514,7 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 		shard: root,
 	}
 
+dispatcherLoop:
 	for {
 		select {
 		case send <- next:
@@ -546,40 +529,39 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 		case <-done:
 			inProgress--
 			if inProgress == 0 && next == nil {
-				return nil
+				break dispatcherLoop
 			}
-		case linksDepth := <-out:
-			for _, c := range linksDepth.links {
-				cd := &shardCidUnion{
+		case nextNodes := <-out:
+			for _, c := range nextNodes.links {
+				shardOrCid := &shardCidUnion{
 					cid: c,
 				}
 
 				if next == nil {
-					next = cd
+					next = shardOrCid
 					send = feed
 				} else {
-					todoQueue = append(todoQueue, cd)
+					todoQueue = append(todoQueue, shardOrCid)
 				}
 			}
-			for _, shard := range linksDepth.shards {
-				cd := &shardCidUnion{
+			for _, shard := range nextNodes.shards {
+				shardOrCid := &shardCidUnion{
 					shard: shard,
 				}
 
 				if next == nil {
-					next = cd
+					next = shardOrCid
 					send = feed
 				} else {
-					todoQueue = append(todoQueue, cd)
+					todoQueue = append(todoQueue, shardOrCid)
 				}
 			}
-		case err := <-errChan:
-			return err
-
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-errGrpCtx.Done():
+			break dispatcherLoop
 		}
 	}
+	close(feed)
+	return grp.Wait()
 }
 
 func emitResult(ctx context.Context, linkResults chan<- format.LinkResult, r format.LinkResult) {

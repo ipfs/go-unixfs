@@ -21,6 +21,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.7.0
 	github.com/warpfork/go-wish v0.0.0-20190328234359-8b3e70f8e830 // indirect
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 )
 
 go 1.16

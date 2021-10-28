@@ -3,6 +3,12 @@ package io
 import (
 	"context"
 	"fmt"
+	blocks "github.com/ipfs/go-block-format"
+	bsrv "github.com/ipfs/go-blockservice"
+	ds "github.com/ipfs/go-datastore"
+	dssync "github.com/ipfs/go-datastore/sync"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
+	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	"math"
 	"sort"
 	"strconv"
@@ -358,8 +364,11 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// with a regular structure to be able to predict how many Shard nodes we
 	// will need to fetch in order to reach the HAMTShardingSize threshold in
 	// sizeBelowThreshold (assuming a sequential DAG walk function).
-	ds := mdtest.Mock()
-	completeHAMTRoot, err := CreateCompleteHAMT(ds, treeHeight, shardWidth)
+
+	bstore := blockstore.NewBlockstore(dssync.MutexWrap(ds.NewMapDatastore()))
+	countGetsDS := newCountGetsDS(bstore)
+	dsrv := mdag.NewDAGService(bsrv.New(countGetsDS, offline.Exchange(countGetsDS)))
+	completeHAMTRoot, err := CreateCompleteHAMT(dsrv, treeHeight, shardWidth)
 	assert.NoError(t, err)
 
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
@@ -374,8 +383,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	//    the HAMTShardingSize threshold.
 	nodesToFetch += thresholdToWidthRatio
 
-	countGetsDS := newCountGetsDS(ds)
-	hamtDir, err := newHAMTDirectoryFromNode(countGetsDS, completeHAMTRoot)
+	hamtDir, err := newHAMTDirectoryFromNode(dsrv, completeHAMTRoot)
 	assert.NoError(t, err)
 
 	countGetsDS.resetCounter()
@@ -537,21 +545,23 @@ func newEmptyHAMTDirectory(dserv ipld.DAGService, shardWidth int) (*HAMTDirector
 // countGetsDS is a DAG service that keeps track of the number of
 // unique CIDs fetched.
 type countGetsDS struct {
-	ipld.DAGService
+	blockstore.Blockstore
 
 	cidsFetched map[cid.Cid]struct{}
 	mapLock     sync.Mutex
+	started bool
 
 	getRequestDelay time.Duration
 }
 
-var _ ipld.DAGService = (*countGetsDS)(nil)
+var _ blockstore.Blockstore = (*countGetsDS)(nil)
 
-func newCountGetsDS(ds ipld.DAGService) *countGetsDS {
+func newCountGetsDS(bs blockstore.Blockstore) *countGetsDS {
 	return &countGetsDS{
-		ds,
+		bs,
 		make(map[cid.Cid]struct{}),
 		sync.Mutex{},
+		false,
 		0,
 	}
 }
@@ -560,6 +570,7 @@ func (d *countGetsDS) resetCounter() {
 	d.mapLock.Lock()
 	defer d.mapLock.Unlock()
 	d.cidsFetched = make(map[cid.Cid]struct{})
+	d.started = true
 }
 
 func (d *countGetsDS) uniqueCidsFetched() int {
@@ -572,12 +583,7 @@ func (d *countGetsDS) setRequestDelay(timeout time.Duration) {
 	d.getRequestDelay = timeout
 }
 
-func (d *countGetsDS) Get(ctx context.Context, c cid.Cid) (ipld.Node, error) {
-	node, err := d.DAGService.Get(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-
+func (d *countGetsDS) maybeSleep(c cid.Cid) {
 	d.mapLock.Lock()
 	_, cidRequestedBefore := d.cidsFetched[c]
 	d.cidsFetched[c] = struct{}{}
@@ -588,11 +594,35 @@ func (d *countGetsDS) Get(ctx context.Context, c cid.Cid) (ipld.Node, error) {
 		// Subsequent requests get no timeout simulating an in-disk cache.
 		time.Sleep(d.getRequestDelay)
 	}
-
-	return node, nil
 }
 
-// Process sequentially (blocking) calling Get which tracks requests.
-func (d *countGetsDS) GetMany(ctx context.Context, cids []cid.Cid) <-chan *ipld.NodeOption {
-	panic("GetMany not supported")
+func (d *countGetsDS) Has(c cid.Cid) (bool, error) {
+	if d.started {
+		panic("implement me")
+	}
+	return d.Blockstore.Has(c)
+}
+
+func (d *countGetsDS) Get(c cid.Cid) (blocks.Block, error) {
+	blk, err := d.Blockstore.Get(c)
+	if err != nil {
+		return nil, err
+	}
+
+	d.maybeSleep(c)
+	return blk, nil
+}
+
+func (d *countGetsDS) GetSize(c cid.Cid) (int, error) {
+	if d.started {
+		panic("implement me")
+	}
+	return d.Blockstore.GetSize(c)
+}
+
+func (d *countGetsDS) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
+	if d.started {
+		panic("implement me")
+	}
+	return d.Blockstore.AllKeysChan(ctx)
 }

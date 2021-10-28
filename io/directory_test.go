@@ -549,7 +549,7 @@ type countGetsDS struct {
 
 	cidsFetched map[cid.Cid]struct{}
 	mapLock     sync.Mutex
-	started bool
+	started     bool
 
 	getRequestDelay time.Duration
 }

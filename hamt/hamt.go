@@ -376,7 +376,7 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 		defer close(linkResults)
 		defer cancel()
 
-		err := parallelWalkDepth(ctx, ds, ds.dserv, func(formattedLink *ipld.Link) error {
+		err := parallelShardWalk(ctx, ds, ds.dserv, func(formattedLink *ipld.Link) error {
 			emitResult(ctx, linkResults, format.LinkResult{Link: formattedLink, Err: nil})
 			return nil
 		})
@@ -387,13 +387,13 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 	return linkResults
 }
 
-type listCidShardUnion struct {
-	links  []cid.Cid
+type listCidsAndShards struct {
+	cids   []cid.Cid
 	shards []*Shard
 }
 
-func (ds *Shard) walkLinks(processLinkValues func(formattedLink *ipld.Link) error) (*listCidShardUnion, error) {
-	res := &listCidShardUnion{}
+func (ds *Shard) walkChildren(processLinkValues func(formattedLink *ipld.Link) error) (*listCidsAndShards, error) {
+	res := &listCidsAndShards{}
 
 	for idx, lnk := range ds.childer.links {
 		if nextShard := ds.childer.children[idx]; nextShard == nil {
@@ -415,7 +415,7 @@ func (ds *Shard) walkLinks(processLinkValues func(formattedLink *ipld.Link) erro
 					return nil, err
 				}
 			case shardLink:
-				res.links = append(res.links, lnk.Cid)
+				res.cids = append(res.cids, lnk.Cid)
 			default:
 				return nil, fmt.Errorf("unsupported shard link type")
 			}
@@ -438,7 +438,14 @@ func (ds *Shard) walkLinks(processLinkValues func(formattedLink *ipld.Link) erro
 	return res, nil
 }
 
-func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, processShardValues func(formattedLink *ipld.Link) error) error {
+// parallelShardWalk is quite similar to the DAG walking algorithm from https://github.com/ipfs/go-merkledag/blob/594e515f162e764183243b72c2ba84f743424c8c/merkledag.go#L464
+// However, there are a few notable differences:
+// 1. Some children are actualized Shard structs and some are in the blockstore, this will leverage walking over the in memory Shards as well as the stored blocks
+// 2. Instead of just passing each child into the worker pool by itself we group them so that we can leverage optimizations from GetMany.
+//    This optimization also makes the walk a little more biased towards depth (as opposed to BFS) in the earlier part of the DAG.
+//    This is particularly helpful for operations like estimating the directory size which should complete quickly when possible.
+// 3. None of the extra options from that package are needed
+func parallelShardWalk(ctx context.Context, root *Shard, dserv ipld.DAGService, processShardValues func(formattedLink *ipld.Link) error) error {
 	const concurrency = 32
 
 	var visitlk sync.Mutex
@@ -449,36 +456,36 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 	grp, errGrpCtx := errgroup.WithContext(ctx)
 
 	// Input and output queues for workers.
-	feed := make(chan *listCidShardUnion)
-	out := make(chan *listCidShardUnion)
+	feed := make(chan *listCidsAndShards)
+	out := make(chan *listCidsAndShards)
 	done := make(chan struct{})
 
 	for i := 0; i < concurrency; i++ {
 		grp.Go(func() error {
-			for shardOrCID := range feed {
-				for _, nextShard := range shardOrCID.shards {
-					nextLinks, err := nextShard.walkLinks(processShardValues)
+			for feedChildren := range feed {
+				for _, nextShard := range feedChildren.shards {
+					nextChildren, err := nextShard.walkChildren(processShardValues)
 					if err != nil {
 						return err
 					}
 
 					select {
-					case out <- nextLinks:
+					case out <- nextChildren:
 					case <-errGrpCtx.Done():
 						return nil
 					}
 				}
 
 				var linksToVisit []cid.Cid
-				for _, nextLink := range shardOrCID.links {
+				for _, nextCid := range feedChildren.cids {
 					var shouldVisit bool
 
 					visitlk.Lock()
-					shouldVisit = visit(nextLink)
+					shouldVisit = visit(nextCid)
 					visitlk.Unlock()
 
 					if shouldVisit {
-						linksToVisit = append(linksToVisit, nextLink)
+						linksToVisit = append(linksToVisit, nextCid)
 					}
 				}
 
@@ -493,13 +500,13 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 						return err
 					}
 
-					nextLinks, err := nextShard.walkLinks(processShardValues)
+					nextChildren, err := nextShard.walkChildren(processShardValues)
 					if err != nil {
 						return err
 					}
 
 					select {
-					case out <- nextLinks:
+					case out <- nextChildren:
 					case <-errGrpCtx.Done():
 						return nil
 					}
@@ -515,10 +522,10 @@ func parallelWalkDepth(ctx context.Context, root *Shard, dserv ipld.DAGService, 
 	}
 
 	send := feed
-	var todoQueue []*listCidShardUnion
+	var todoQueue []*listCidsAndShards
 	var inProgress int
 
-	next := &listCidShardUnion{
+	next := &listCidsAndShards{
 		shards: []*Shard{root},
 	}
 

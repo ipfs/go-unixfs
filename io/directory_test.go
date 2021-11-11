@@ -371,6 +371,16 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	completeHAMTRoot, err := CreateCompleteHAMT(dsrv, treeHeight, shardWidth)
 	assert.NoError(t, err)
 
+	// Calculate the optimal number of nodes to traverse
+	optimalNodesToFetch := 0
+	nodesToProcess := HAMTShardingSize
+	for nodesToProcess > 1 {
+		// divide by the shard width to get the parents and continue up the tree
+		parentNodes := int(math.Ceil(float64(nodesToProcess) / float64(shardWidth)))
+		optimalNodesToFetch += parentNodes
+		nodesToProcess = parentNodes
+	}
+
 	// With this structure and a BFS traversal (from `parallelWalkDepth`) then
 	// we would roughly fetch the following nodes:
 	nodesToFetch := 0
@@ -396,12 +406,12 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, below)
 	t.Logf("fetched %d nodes (predicted range: %d-%d)",
-		countGetsDS.uniqueCidsFetched(), nodesToFetch, nodesToFetch+defaultConcurrentFetch)
+		countGetsDS.uniqueCidsFetched(), optimalNodesToFetch, nodesToFetch+defaultConcurrentFetch)
 	// Check that the actual number of nodes fetched is within the margin of the
 	// estimated `nodesToFetch` plus an extra of `defaultConcurrentFetch` since
 	// we are fetching in parallel.
 	assert.True(t, countGetsDS.uniqueCidsFetched() <= nodesToFetch+defaultConcurrentFetch)
-	assert.True(t, countGetsDS.uniqueCidsFetched() >= nodesToFetch)
+	assert.True(t, countGetsDS.uniqueCidsFetched() >= optimalNodesToFetch)
 }
 
 // Compare entries in the leftDir against the rightDir and possibly

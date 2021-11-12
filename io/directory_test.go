@@ -308,7 +308,7 @@ func TestIntegrityOfDirectorySwitch(t *testing.T) {
 	}
 	compareDirectoryEntries(t, basicDir, hamtDir)
 
-	hamtDirFromSwitch, err := basicDir.SwitchToSharding(ctx)
+	hamtDirFromSwitch, err := basicDir.switchToSharding(ctx)
 	assert.NoError(t, err)
 	basicDirFromSwitch, err := hamtDir.switchToBasic(ctx)
 	assert.NoError(t, err)

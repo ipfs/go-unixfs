@@ -321,8 +321,8 @@ func (d *BasicDirectory) GetCidBuilder() cid.Builder {
 	return d.node.CidBuilder()
 }
 
-// SwitchToSharding returns a HAMT implementation of this directory.
-func (d *BasicDirectory) SwitchToSharding(ctx context.Context) (*HAMTDirectory, error) {
+// switchToSharding returns a HAMT implementation of this directory.
+func (d *BasicDirectory) switchToSharding(ctx context.Context) (*HAMTDirectory, error) {
 	hamtDir := new(HAMTDirectory)
 	hamtDir.dserv = d.dserv
 
@@ -575,7 +575,7 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 	if !switchToHAMT {
 		return basicDir.AddChild(ctx, name, nd)
 	}
-	hamtDir, err = basicDir.SwitchToSharding(ctx)
+	hamtDir, err = basicDir.switchToSharding(ctx)
 	if err != nil {
 		return err
 	}

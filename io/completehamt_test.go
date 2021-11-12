@@ -21,7 +21,8 @@ import (
 // * all leaf Shard nodes have the same depth (and have only 'value' links).
 // * all internal Shard nodes point only to other Shards (and hence have zero 'value' links).
 // * the total number of 'value' links (directory entries) is:
-//   io.DefaultShardWidth ^ (treeHeight + 1).
+//   childsPerNode ^ (treeHeight).
+//  treeHeight: The number of layers of non-value HAMT nodes (e.g. height = 1 is a single shard pointing to some values)
 // FIXME: HAMTHashFunction needs to be set to idHash by the caller. We depend on
 //  this simplification for the current logic to work. (HAMTHashFunction is a
 //  global setting of the package, it is hard-coded in the serialized Shard node

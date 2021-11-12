@@ -24,6 +24,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	format "github.com/ipfs/go-unixfs"
 	"github.com/ipfs/go-unixfs/internal"
@@ -372,14 +375,11 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 	go func() {
 		defer close(linkResults)
 		defer cancel()
-		getLinks := makeAsyncTrieGetLinks(ds.dserv, linkResults)
-		cset := cid.NewSet()
-		rootNode, err := ds.Node()
-		if err != nil {
-			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
-			return
-		}
-		err = dag.Walk(ctx, getLinks, rootNode.Cid(), cset.Visit, dag.Concurrent())
+
+		err := parallelShardWalk(ctx, ds, ds.dserv, func(formattedLink *ipld.Link) error {
+			emitResult(ctx, linkResults, format.LinkResult{Link: formattedLink, Err: nil})
+			return nil
+		})
 		if err != nil {
 			emitResult(ctx, linkResults, format.LinkResult{Link: nil, Err: err})
 		}
@@ -387,44 +387,178 @@ func (ds *Shard) EnumLinksAsync(ctx context.Context) <-chan format.LinkResult {
 	return linkResults
 }
 
-// makeAsyncTrieGetLinks builds a getLinks function that can be used with EnumerateChildrenAsync
-// to iterate a HAMT shard. It takes an IPLD Dag Service to fetch nodes, and a call back that will get called
-// on all links to leaf nodes in a HAMT tree, so they can be collected for an EnumLinks operation
-func makeAsyncTrieGetLinks(dagService ipld.DAGService, linkResults chan<- format.LinkResult) dag.GetLinks {
+type listCidsAndShards struct {
+	cids   []cid.Cid
+	shards []*Shard
+}
 
-	return func(ctx context.Context, currentCid cid.Cid) ([]*ipld.Link, error) {
-		node, err := dagService.Get(ctx, currentCid)
-		if err != nil {
-			return nil, err
-		}
-		directoryShard, err := NewHamtFromDag(dagService, node)
-		if err != nil {
-			return nil, err
-		}
+func (ds *Shard) walkChildren(processLinkValues func(formattedLink *ipld.Link) error) (*listCidsAndShards, error) {
+	res := &listCidsAndShards{}
 
-		childShards := make([]*ipld.Link, 0, directoryShard.childer.length())
-		links := directoryShard.childer.links
-		for idx := range directoryShard.childer.children {
-			lnk := links[idx]
-			lnkLinkType, err := directoryShard.childLinkType(lnk)
-
+	for idx, lnk := range ds.childer.links {
+		if nextShard := ds.childer.children[idx]; nextShard == nil {
+			lnkLinkType, err := ds.childLinkType(lnk)
 			if err != nil {
 				return nil, err
 			}
-			if lnkLinkType == shardLink {
-				childShards = append(childShards, lnk)
-			} else {
-				sv, err := directoryShard.makeShardValue(lnk)
+
+			switch lnkLinkType {
+			case shardValueLink:
+				sv, err := ds.makeShardValue(lnk)
 				if err != nil {
 					return nil, err
 				}
 				formattedLink := sv.val
 				formattedLink.Name = sv.key
-				emitResult(ctx, linkResults, format.LinkResult{Link: formattedLink, Err: nil})
+
+				if err := processLinkValues(formattedLink); err != nil {
+					return nil, err
+				}
+			case shardLink:
+				res.cids = append(res.cids, lnk.Cid)
+			default:
+				return nil, fmt.Errorf("unsupported shard link type")
+			}
+
+		} else {
+			if nextShard.val != nil {
+				formattedLink := &ipld.Link{
+					Name: nextShard.key,
+					Size: nextShard.val.Size,
+					Cid:  nextShard.val.Cid,
+				}
+				if err := processLinkValues(formattedLink); err != nil {
+					return nil, err
+				}
+			} else {
+				res.shards = append(res.shards, nextShard)
 			}
 		}
-		return childShards, nil
 	}
+	return res, nil
+}
+
+// parallelShardWalk is quite similar to the DAG walking algorithm from https://github.com/ipfs/go-merkledag/blob/594e515f162e764183243b72c2ba84f743424c8c/merkledag.go#L464
+// However, there are a few notable differences:
+// 1. Some children are actualized Shard structs and some are in the blockstore, this will leverage walking over the in memory Shards as well as the stored blocks
+// 2. Instead of just passing each child into the worker pool by itself we group them so that we can leverage optimizations from GetMany.
+//    This optimization also makes the walk a little more biased towards depth (as opposed to BFS) in the earlier part of the DAG.
+//    This is particularly helpful for operations like estimating the directory size which should complete quickly when possible.
+// 3. None of the extra options from that package are needed
+func parallelShardWalk(ctx context.Context, root *Shard, dserv ipld.DAGService, processShardValues func(formattedLink *ipld.Link) error) error {
+	const concurrency = 32
+
+	var visitlk sync.Mutex
+	visitSet := cid.NewSet()
+	visit := visitSet.Visit
+
+	// Setup synchronization
+	grp, errGrpCtx := errgroup.WithContext(ctx)
+
+	// Input and output queues for workers.
+	feed := make(chan *listCidsAndShards)
+	out := make(chan *listCidsAndShards)
+	done := make(chan struct{})
+
+	for i := 0; i < concurrency; i++ {
+		grp.Go(func() error {
+			for feedChildren := range feed {
+				for _, nextShard := range feedChildren.shards {
+					nextChildren, err := nextShard.walkChildren(processShardValues)
+					if err != nil {
+						return err
+					}
+
+					select {
+					case out <- nextChildren:
+					case <-errGrpCtx.Done():
+						return nil
+					}
+				}
+
+				var linksToVisit []cid.Cid
+				for _, nextCid := range feedChildren.cids {
+					var shouldVisit bool
+
+					visitlk.Lock()
+					shouldVisit = visit(nextCid)
+					visitlk.Unlock()
+
+					if shouldVisit {
+						linksToVisit = append(linksToVisit, nextCid)
+					}
+				}
+
+				chNodes := dserv.GetMany(errGrpCtx, linksToVisit)
+				for optNode := range chNodes {
+					if optNode.Err != nil {
+						return optNode.Err
+					}
+
+					nextShard, err := NewHamtFromDag(dserv, optNode.Node)
+					if err != nil {
+						return err
+					}
+
+					nextChildren, err := nextShard.walkChildren(processShardValues)
+					if err != nil {
+						return err
+					}
+
+					select {
+					case out <- nextChildren:
+					case <-errGrpCtx.Done():
+						return nil
+					}
+				}
+
+				select {
+				case done <- struct{}{}:
+				case <-errGrpCtx.Done():
+				}
+			}
+			return nil
+		})
+	}
+
+	send := feed
+	var todoQueue []*listCidsAndShards
+	var inProgress int
+
+	next := &listCidsAndShards{
+		shards: []*Shard{root},
+	}
+
+dispatcherLoop:
+	for {
+		select {
+		case send <- next:
+			inProgress++
+			if len(todoQueue) > 0 {
+				next = todoQueue[0]
+				todoQueue = todoQueue[1:]
+			} else {
+				next = nil
+				send = nil
+			}
+		case <-done:
+			inProgress--
+			if inProgress == 0 && next == nil {
+				break dispatcherLoop
+			}
+		case nextNodes := <-out:
+			if next == nil {
+				next = nextNodes
+				send = feed
+			} else {
+				todoQueue = append(todoQueue, nextNodes)
+			}
+		case <-errGrpCtx.Done():
+			break dispatcherLoop
+		}
+	}
+	close(feed)
+	return grp.Wait()
 }
 
 func emitResult(ctx context.Context, linkResults chan<- format.LinkResult, r format.LinkResult) {

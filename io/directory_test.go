@@ -207,13 +207,13 @@ func mockLinkSizeFunc(fixedSize int) func(linkName string, linkCid cid.Cid) int 
 }
 
 func checkBasicDirectory(t *testing.T, dir Directory, errorMessage string) {
-	if _, ok := dir.(*DyanmicDirectory).Directory.(*BasicDirectory); !ok {
+	if _, ok := dir.(*DynamicDirectory).Directory.(*BasicDirectory); !ok {
 		t.Fatal(errorMessage)
 	}
 }
 
 func checkHAMTDirectory(t *testing.T, dir Directory, errorMessage string) {
-	if _, ok := dir.(*DyanmicDirectory).Directory.(*HAMTDirectory); !ok {
+	if _, ok := dir.(*DynamicDirectory).Directory.(*HAMTDirectory); !ok {
 		t.Fatal(errorMessage)
 	}
 }
@@ -244,7 +244,7 @@ func TestProductionLinkSize(t *testing.T) {
 }
 
 // Test HAMTDirectory <-> BasicDirectory switch based on directory size. The
-// switch is managed by the DyanmicDirectory abstraction.
+// switch is managed by the DynamicDirectory abstraction.
 func TestDynamicDirectorySwitch(t *testing.T) {
 	oldHamtOption := HAMTShardingSize
 	defer func() { HAMTShardingSize = oldHamtOption }()

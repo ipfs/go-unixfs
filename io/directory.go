@@ -126,10 +126,10 @@ func newBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 	return basicDir
 }
 
-// NewDirectory returns a Directory implemented by DyanmicDirectory
+// NewDirectory returns a Directory implemented by DynamicDirectory
 // containing a BasicDirectory that can be converted to a HAMTDirectory.
 func NewDirectory(dserv ipld.DAGService) Directory {
-	return &DyanmicDirectory{newEmptyBasicDirectory(dserv)}
+	return &DynamicDirectory{newEmptyBasicDirectory(dserv)}
 }
 
 // ErrNotADir implies that the given node was not a unixfs directory
@@ -150,13 +150,13 @@ func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, err
 
 	switch fsNode.Type() {
 	case format.TDirectory:
-		return &DyanmicDirectory{newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode))}, nil
+		return &DynamicDirectory{newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode))}, nil
 	case format.THAMTShard:
 		shard, err := hamt.NewHamtFromDag(dserv, node)
 		if err != nil {
 			return nil, err
 		}
-		return &DyanmicDirectory{&HAMTDirectory{shard, dserv, 0}}, nil
+		return &DynamicDirectory{&HAMTDirectory{shard, dserv, 0}}, nil
 	}
 
 	return nil, ErrNotADir
@@ -524,17 +524,17 @@ func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) 
 	return true, nil
 }
 
-// DyanmicDirectory wraps a Directory interface and provides extra logic
+// DynamicDirectory wraps a Directory interface and provides extra logic
 // to upgrade from its BasicDirectory implementation to HAMTDirectory.
-type DyanmicDirectory struct {
+type DynamicDirectory struct {
 	Directory
 }
 
-var _ Directory = (*DyanmicDirectory)(nil)
+var _ Directory = (*DynamicDirectory)(nil)
 
 // AddChild implements the `Directory` interface. We check when adding new entries
 // if we should switch to HAMTDirectory according to global option(s).
-func (d *DyanmicDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
+func (d *DynamicDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if ok {
 		// We evaluate a switch in the HAMTDirectory case even for an AddChild
@@ -590,7 +590,7 @@ func (d *DyanmicDirectory) AddChild(ctx context.Context, name string, nd ipld.No
 //  (in which case we would have the hard comparison in GetNode() to make
 //  sure we make good on the value). Finding the right margin can be tricky
 //  and very dependent on the use case so it might not be worth it.
-func (d *DyanmicDirectory) RemoveChild(ctx context.Context, name string) error {
+func (d *DynamicDirectory) RemoveChild(ctx context.Context, name string) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if !ok {
 		return d.Directory.RemoveChild(ctx, name)

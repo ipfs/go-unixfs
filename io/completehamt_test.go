@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ipfs/go-unixfs/internal"
 	"math"
 	"testing"
 
@@ -24,13 +25,7 @@ import (
 //   childsPerNode ^ (treeHeight).
 //  treeHeight: The number of layers of non-value HAMT nodes (e.g. height = 1 is a single shard pointing to some values)
 // FIXME: HAMTHashFunction needs to be set to idHash by the caller. We depend on
-//  this simplification for the current logic to work. (HAMTHashFunction is a
-//  global setting of the package, it is hard-coded in the serialized Shard node
-//  and not allowed to be changed on a per HAMT/Shard basis.)
-//  (If we didn't rehash inside setValue then we could just generate
-//  the fake hash as in io.Swap through `newHashBits()` and pass
-//  it as an argument making the hash independent of tree manipulation; that
-//  sounds as the correct way to go in general and we wouldn't need this.)
+//  this simplification for the current logic to work.
 func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (ipld.Node, error) {
 	if treeHeight < 1 {
 		panic("treeHeight < 1")
@@ -79,7 +74,13 @@ func idHash(val []byte) []byte {
 	return val
 }
 
+// FIXME: This is not checking the exact height of the tree but just making
+//  sure there are as many children as we would have with a complete HAMT.
 func TestCreateCompleteShard(t *testing.T) {
+	oldHashFunc := internal.HAMTHashFunction
+	defer func() { internal.HAMTHashFunction = oldHashFunc }()
+	internal.HAMTHashFunction = idHash
+
 	ds := mdtest.Mock()
 	childsPerNode := 16
 	treeHeight := 2

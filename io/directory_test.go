@@ -374,7 +374,7 @@ func TestHAMTEnumerationWhenComputingSize(t *testing.T) {
 	// Calculate the optimal number of nodes to traverse
 	optimalNodesToFetch := 0
 	nodesToProcess := HAMTShardingSize
-	for nodesToProcess > 1 {
+	for i := 0; i < treeHeight-1; i++ {
 		// divide by the shard width to get the parents and continue up the tree
 		parentNodes := int(math.Ceil(float64(nodesToProcess) / float64(shardWidth)))
 		optimalNodesToFetch += parentNodes

@@ -225,14 +225,14 @@ func (ds *Shard) makeShardValue(lnk *ipld.Link) (*Shard, error) {
 
 // Set sets 'name' = nd in the HAMT
 func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
-	_, err := ds.SetAndPrevious(ctx, name, nd)
+	_, err := ds.Swap(ctx, name, nd)
 	return err
 }
 
-// SetAndPrevious sets a link pointing to the passed node as the value under the
+// Swap sets a link pointing to the passed node as the value under the
 // name key in this Shard or its children. It also returns the previous link
 // under that name key (if any).
-func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
+func (ds *Shard) Swap(ctx context.Context, name string, node ipld.Node) (*ipld.Link, error) {
 	hv := newHashBits(name)
 	err := ds.dserv.Add(ctx, node)
 	if err != nil {
@@ -248,21 +248,21 @@ func (ds *Shard) SetAndPrevious(ctx context.Context, name string, node ipld.Node
 	//  This is confusing, confirm and remove this line.
 	lnk.Name = ds.linkNamePrefix(0) + name
 
-	return ds.setValue(ctx, hv, name, lnk)
+	return ds.swapValue(ctx, hv, name, lnk)
 }
 
 // Remove deletes the named entry if it exists. Otherwise, it returns
 // os.ErrNotExist.
 func (ds *Shard) Remove(ctx context.Context, name string) error {
-	_, err := ds.RemoveAndPrevious(ctx, name)
+	_, err := ds.Take(ctx, name)
 	return err
 }
 
-// RemoveAndPrevious is similar to the public Remove but also returns the
+// Take is similar to the public Remove but also returns the
 // old removed link (if it exists).
-func (ds *Shard) RemoveAndPrevious(ctx context.Context, name string) (*ipld.Link, error) {
+func (ds *Shard) Take(ctx context.Context, name string) (*ipld.Link, error) {
 	hv := newHashBits(name)
-	return ds.setValue(ctx, hv, name, nil)
+	return ds.swapValue(ctx, hv, name, nil)
 }
 
 // Find searches for a child node by 'name' within this hamt
@@ -592,9 +592,9 @@ func (ds *Shard) walkTrie(ctx context.Context, cb func(*Shard) error) error {
 	})
 }
 
-// setValue sets the link `value` in the given key, either creating the entry
+// swapValue sets the link `value` in the given key, either creating the entry
 // if it didn't exist or overwriting the old one. It returns the old entry (if any).
-func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *ipld.Link) (*ipld.Link, error) {
+func (ds *Shard) swapValue(ctx context.Context, hv *hashBits, key string, value *ipld.Link) (*ipld.Link, error) {
 	idx, err := hv.Next(ds.tableSizeLg2)
 	if err != nil {
 		return nil, err
@@ -651,11 +651,11 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 		// (which will be nil) to highlight there is no overwrite here: they are
 		// done with different keys to a new (empty) shard. (At best this shard
 		// will create new ones until we find different slots for both.)
-		_, err = child.setValue(ctx, hv, key, value)
+		_, err = child.swapValue(ctx, hv, key, value)
 		if err != nil {
 			return nil, err
 		}
-		_, err = child.setValue(ctx, chhv, grandChild.key, grandChild.val)
+		_, err = child.swapValue(ctx, chhv, grandChild.key, grandChild.val)
 		if err != nil {
 			return nil, err
 		}
@@ -666,7 +666,7 @@ func (ds *Shard) setValue(ctx context.Context, hv *hashBits, key string, value *
 	} else {
 		// We are in a Shard (internal node). We will recursively call this
 		// function until finding the leaf (the logic of the `if` case above).
-		oldValue, err := child.setValue(ctx, hv, key, value)
+		oldValue, err := child.swapValue(ctx, hv, key, value)
 		if err != nil {
 			return nil, err
 		}

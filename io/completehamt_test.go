@@ -28,7 +28,7 @@ import (
 //  global setting of the package, it is hard-coded in the serialized Shard node
 //  and not allowed to be changed on a per HAMT/Shard basis.)
 //  (If we didn't rehash inside setValue then we could just generate
-//  the fake hash as in io.SetAndPrevious through `newHashBits()` and pass
+//  the fake hash as in io.Swap through `newHashBits()` and pass
 //  it as an argument making the hash independent of tree manipulation; that
 //  sounds as the correct way to go in general and we wouldn't need this.)
 func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (ipld.Node, error) {
@@ -59,7 +59,7 @@ func CreateCompleteHAMT(ds ipld.DAGService, treeHeight int, childsPerNode int) (
 		var hashbuf [8]byte
 		binary.LittleEndian.PutUint64(hashbuf[:], uint64(i))
 		var oldLink *ipld.Link
-		oldLink, err = rootShard.SetAndPrevious(context.Background(), string(hashbuf[:bytesInKey]), unixfs.EmptyFileNode())
+		oldLink, err = rootShard.Swap(context.Background(), string(hashbuf[:bytesInKey]), unixfs.EmptyFileNode())
 		if err != nil {
 			return nil, err
 		}

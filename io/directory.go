@@ -355,7 +355,7 @@ func (d *HAMTDirectory) SetCidBuilder(builder cid.Builder) {
 
 // AddChild implements the `Directory` interface.
 func (d *HAMTDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
-	oldChild, err := d.shard.SetAndPrevious(ctx, name, nd)
+	oldChild, err := d.shard.Swap(ctx, name, nd)
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func (d *HAMTDirectory) Find(ctx context.Context, name string) (ipld.Node, error
 
 // RemoveChild implements the `Directory` interface.
 func (d *HAMTDirectory) RemoveChild(ctx context.Context, name string) error {
-	oldChild, err := d.shard.RemoveAndPrevious(ctx, name)
+	oldChild, err := d.shard.Take(ctx, name)
 	if err != nil {
 		return err
 	}

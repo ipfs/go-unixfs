@@ -586,11 +586,6 @@ func (d *DynamicDirectory) AddChild(ctx context.Context, name string, nd ipld.No
 // RemoveChild implements the `Directory` interface. Used in the case where we wrap
 // a HAMTDirectory that might need to be downgraded to a BasicDirectory. The
 // upgrade path is in AddChild.
-// FIXME: Consider adding some margin in the comparison against HAMTShardingSize
-//  to avoid an eager enumeration at the first opportunity we go below it
-//  (in which case we would have the hard comparison in GetNode() to make
-//  sure we make good on the value). Finding the right margin can be tricky
-//  and very dependent on the use case so it might not be worth it.
 func (d *DynamicDirectory) RemoveChild(ctx context.Context, name string) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if !ok {

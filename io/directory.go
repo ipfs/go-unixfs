@@ -525,7 +525,8 @@ func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) 
 }
 
 // DynamicDirectory wraps a Directory interface and provides extra logic
-// to upgrade from its BasicDirectory implementation to HAMTDirectory.
+// to switch from BasicDirectory to HAMTDirectory and backwards based on
+// size.
 type DynamicDirectory struct {
 	Directory
 }

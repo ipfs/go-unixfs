@@ -126,10 +126,10 @@ func newBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 	return basicDir
 }
 
-// NewDirectory returns a Directory implemented by UpgradeableDirectory
+// NewDirectory returns a Directory implemented by DyanmicDirectory
 // containing a BasicDirectory that can be converted to a HAMTDirectory.
 func NewDirectory(dserv ipld.DAGService) Directory {
-	return &UpgradeableDirectory{newEmptyBasicDirectory(dserv)}
+	return &DyanmicDirectory{newEmptyBasicDirectory(dserv)}
 }
 
 // ErrNotADir implies that the given node was not a unixfs directory
@@ -150,13 +150,13 @@ func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, err
 
 	switch fsNode.Type() {
 	case format.TDirectory:
-		return &UpgradeableDirectory{newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode))}, nil
+		return &DyanmicDirectory{newBasicDirectoryFromNode(dserv, protoBufNode.Copy().(*mdag.ProtoNode))}, nil
 	case format.THAMTShard:
 		shard, err := hamt.NewHamtFromDag(dserv, node)
 		if err != nil {
 			return nil, err
 		}
-		return &UpgradeableDirectory{&HAMTDirectory{shard, dserv, 0}}, nil
+		return &DyanmicDirectory{&HAMTDirectory{shard, dserv, 0}}, nil
 	}
 
 	return nil, ErrNotADir
@@ -524,22 +524,17 @@ func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) 
 	return true, nil
 }
 
-// UpgradeableDirectory wraps a Directory interface and provides extra logic
+// DyanmicDirectory wraps a Directory interface and provides extra logic
 // to upgrade from its BasicDirectory implementation to HAMTDirectory.
-// FIXME: Rename to something that reflects the new bi-directionality. We no
-//  longer go in the "forward" direction (upgrade) but we also go "backward".
-//  Possible alternatives: SwitchableDirectory or DynamicDirectory. Also consider
-//  more generic-sounding names like WrapperDirectory that emphasize that this
-//  is just the middleman and has no real Directory-implementing logic.
-type UpgradeableDirectory struct {
+type DyanmicDirectory struct {
 	Directory
 }
 
-var _ Directory = (*UpgradeableDirectory)(nil)
+var _ Directory = (*DyanmicDirectory)(nil)
 
 // AddChild implements the `Directory` interface. We check when adding new entries
 // if we should switch to HAMTDirectory according to global option(s).
-func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
+func (d *DyanmicDirectory) AddChild(ctx context.Context, name string, nd ipld.Node) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if ok {
 		// We evaluate a switch in the HAMTDirectory case even for an AddChild
@@ -595,7 +590,7 @@ func (d *UpgradeableDirectory) AddChild(ctx context.Context, name string, nd ipl
 //  (in which case we would have the hard comparison in GetNode() to make
 //  sure we make good on the value). Finding the right margin can be tricky
 //  and very dependent on the use case so it might not be worth it.
-func (d *UpgradeableDirectory) RemoveChild(ctx context.Context, name string) error {
+func (d *DyanmicDirectory) RemoveChild(ctx context.Context, name string) error {
 	hamtDir, ok := d.Directory.(*HAMTDirectory)
 	if !ok {
 		return d.Directory.RemoveChild(ctx, name)

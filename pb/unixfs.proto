@@ -19,8 +19,17 @@ message Data {
 
 	optional uint64 hashType = 5;
 	optional uint64 fanout = 6;
+
+	// unixfs v1.5 metadata additions
+	optional uint32 mode = 7;
+	optional UnixTime mtime = 8;
 }
 
 message Metadata {
 	optional string MimeType = 1;
+}
+
+message UnixTime {
+  required int64 Seconds = 1;
+  optional fixed32 FractionalNanoseconds = 2;
 }

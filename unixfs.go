@@ -6,6 +6,8 @@ package unixfs
 import (
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	proto "github.com/gogo/protobuf/proto"
 	dag "github.com/ipfs/go-merkledag"
@@ -69,7 +71,7 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 	return data
 }
 
-//FolderPBData returns Bytes that represent a Directory.
+// FolderPBData returns Bytes that represent a Directory.
 func FolderPBData() []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_Directory
@@ -77,13 +79,13 @@ func FolderPBData() []byte {
 
 	data, err := proto.Marshal(pbfile)
 	if err != nil {
-		//this really shouldnt happen, i promise
+		// this really shouldnt happen, i promise
 		panic(err)
 	}
 	return data
 }
 
-//WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
+// WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
 func WrapData(b []byte) []byte {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Raw
@@ -100,7 +102,7 @@ func WrapData(b []byte) []byte {
 	return out
 }
 
-//SymlinkData returns a `Data_Symlink` protobuf message for the path you specify.
+// SymlinkData returns a `Data_Symlink` protobuf message for the path you specify.
 func SymlinkData(path string) ([]byte, error) {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Symlink
@@ -302,6 +304,79 @@ func (n *FSNode) IsDir() bool {
 	default:
 		return false
 	}
+}
+
+// FileMode returns the optional file mode bits
+func (n *FSNode) FileMode() os.FileMode {
+	// mask unknown bits as per https://github.com/ipfs/specs/blob/master/UNIXFS.md#metadata
+	mode := os.FileMode(n.format.GetMode() & 0o7777)
+	if mode != 0 {
+		return mode
+	}
+
+	// Defaults if unset
+	switch n.Type() {
+	case pb.Data_Directory, pb.Data_HAMTShard:
+		return 0o0755
+	case pb.Data_Raw, pb.Data_File, pb.Data_Symlink:
+		return 0o0644
+	default:
+		return 0
+	}
+}
+
+// SetFileMode sets the file mode bits
+func (n *FSNode) SetFileMode(m os.FileMode) {
+	// Special case, don't add a zero mode unless mode bits already exist
+	// This preserves binary compatibility with unixfs 1.0
+	if m == 0 && n.format.Mode == nil {
+		return
+	}
+
+	// mask unknown bits as per https://github.com/ipfs/specs/blob/master/UNIXFS.md#metadata
+	mode := (uint32(m) & 0o7777) | (n.format.GetMode() & 0xFFFFF000)
+	n.format.Mode = &mode
+}
+
+// ModTime returns the optional modification time of the file.
+func (n *FSNode) ModTime() time.Time {
+	mtime := n.format.GetMtime()
+	if mtime == nil {
+		// return an unspecified time
+		return time.Time{}
+	}
+
+	secs := mtime.GetSeconds()
+	nsecs := uint32(0)
+	if mtime.FractionalNanoseconds != nil {
+		if *mtime.FractionalNanoseconds < 1 || *mtime.FractionalNanoseconds > 999999999 {
+			// Invalid time, return an unspecified time
+			return time.Time{}
+		}
+		nsecs = *mtime.FractionalNanoseconds
+	}
+
+	return time.Unix(secs, int64(nsecs))
+}
+
+// SetModTime sets the modification time of the file.
+func (n *FSNode) SetModTime(t time.Time) {
+	if t.IsZero() {
+		// unset the mtime since unix timestamp is not defined for an unitialized time value
+		n.format.Mtime = nil
+		return
+	}
+	unixnano := t.UnixNano()
+
+	secs := unixnano / int64(time.Second)
+	nanos := uint32(unixnano - secs*int64(time.Second))
+
+	if n.format.Mtime == nil {
+		n.format.Mtime = &pb.UnixTime{}
+	}
+
+	n.format.Mtime.Seconds = &secs
+	n.format.Mtime.FractionalNanoseconds = &nanos
 }
 
 // Metadata is used to store additional FSNode information.

@@ -224,17 +224,6 @@ func (n *FSNode) Fanout() uint64 {
 	return n.format.GetFanout()
 }
 
-func (n *FSNode) Mode() os.FileMode {
-	return os.FileMode(n.format.GetMode())
-}
-
-func (n *FSNode) ModTime() time.Time {
-	if t := n.format.GetMtime(); t != nil {
-		return time.Unix(*t.Seconds, int64(*t.Nanos))
-	}
-	return time.Time{}
-}
-
 // AddBlockSize adds the size of the next child block of this node
 func (n *FSNode) AddBlockSize(s uint64) {
 	n.UpdateFilesize(int64(s))
@@ -317,15 +306,95 @@ func (n *FSNode) IsDir() bool {
 	}
 }
 
-func (n *FSNode) SetModTime(ts time.Time) {
-	n.format.Mtime = &pb.IPFSTimestamp{
-		Seconds: proto.Int64(ts.Unix()),
-		Nanos:   proto.Uint32(uint32(ts.Nanosecond())),
+// Mode returns the stored file permissions, or suitable default if no permissions are stored.
+func (n *FSNode) Mode() os.FileMode {
+	var mode os.FileMode = 0
+	modePerms := n.format.GetMode() & 0xFFF
+	if modePerms == 0 {
+		switch n.Type() {
+		case TFile, TSymlink:
+			mode = 0o644
+		case pb.Data_Directory, pb.Data_HAMTShard:
+			mode = 0o755
+		}
+	} else {
+		// convert unix mode permissions to os.FileMode permissions
+		mode = os.FileMode((modePerms & 0x1FF) | (modePerms & 0xC00 << 12) | (modePerms & 0x200 << 11))
+	}
+
+	switch n.Type() {
+	case pb.Data_Directory, pb.Data_HAMTShard:
+		mode |= os.ModeDir
+	case pb.Data_Symlink:
+		mode |= os.ModeSymlink
+	}
+
+	return mode
+}
+
+// SetMode stores the given file permissions, or nullifies stored permissions if no permissions
+// were provided and there are no extended bits set.
+func (n *FSNode) SetMode(m os.FileMode) {
+	// convert os.FileMode to unix mode permissions
+	modePerms := uint32((m >> 12) | (m & os.ModeSticky >> 11) | (m & os.ModePerm))
+	n.SetModeFromUnixPermissions(modePerms)
+}
+
+func (n *FSNode) SetModeFromUnixPermissions(permissions uint32) {
+	// when set, preserve existing most significant 20 bits
+	newMode := (n.format.GetMode() & 0xFFFFF000) | (permissions & 0xFFF)
+
+	if newMode != 0 {
+		n.format.Mode = &newMode
+	} else {
+		n.format.Mode = nil
 	}
 }
 
-func (n *FSNode) SetMode(m os.FileMode) {
-	n.format.Mode = proto.Uint32(uint32(m))
+// ExtendedMode returns the 20 bits of extended file mode
+func (n *FSNode) ExtendedMode() uint32 {
+	return (n.format.GetMode() & 0xFFFFF000) >> 12
+}
+
+// SetExtendedMode stores the 20 bits of extended file mode, only the first
+// 20 bits of the `mode` argument are used, the remaining 12 bits are ignored.
+func (n *FSNode) SetExtendedMode(mode uint32) {
+	n.format.Mode = proto.Uint32((mode << 12) | (0xFFF & n.format.GetMode()))
+}
+
+// ModTime returns the stored last modified timestamp if available.
+func (n *FSNode) ModTime() time.Time {
+	ts := n.format.GetMtime()
+	if ts == nil || ts.Seconds == nil {
+		return time.Time{}
+	}
+	if ts.Nanos == nil {
+		return time.Unix(*ts.Seconds, 0)
+	}
+	if *ts.Nanos < 1 || *ts.Nanos > 999999999 {
+		return time.Time{}
+	}
+
+	return time.Unix(*ts.Seconds, int64(*ts.Nanos))
+}
+
+// SetModTime stores the given last modified timestamp, or nullifies stored timestamp if one wasn't provided.
+func (n *FSNode) SetModTime(ts time.Time) {
+	if ts.IsZero() {
+		n.format.Mtime = nil
+		return
+	}
+
+	if n.format.Mtime == nil {
+		n.format.Mtime = &pb.IPFSTimestamp{}
+	}
+
+	n.format.Mtime.Seconds = proto.Int64(ts.Unix())
+	if ts.Nanosecond() > 0 {
+	 	n.format.Mtime.Nanos = proto.Uint32(uint32(ts.Nanosecond()))
+	} else {
+		n.format.Mtime.Nanos = nil
+	}
 }
 
 // Metadata is used to store additional FSNode information.

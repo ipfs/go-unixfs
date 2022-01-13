@@ -376,7 +376,16 @@ func (n *FSNode) SetModTime(t time.Time) {
 	}
 
 	n.format.Mtime.Seconds = &secs
-	n.format.Mtime.FractionalNanoseconds = &nanos
+
+	// From spec https://github.com/ipfs/specs/blob/master/UNIXFS.md#metadata
+	// An mtime structure with FractionalNanoseconds outside of the on-wire range [1, 999999999] is not valid. This includes
+	// a fractional value of 0. Implementations encountering such values should consider the entire enclosing metadata
+	// block malformed and abort processing the corresponding DAG.
+	if nanos == 0 {
+		n.format.Mtime.FractionalNanoseconds = nil
+	} else {
+		n.format.Mtime.FractionalNanoseconds = &nanos
+	}
 }
 
 // Metadata is used to store additional FSNode information.

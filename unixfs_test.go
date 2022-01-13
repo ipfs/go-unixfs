@@ -223,6 +223,39 @@ func TestMtime(t *testing.T) {
 	}
 }
 
+func TestMtimeWholeSeconds(t *testing.T) {
+	fsn := NewFSNode(TFile)
+	fsn.SetData(make([]byte, 128))
+	fsn.SetModTime(time.Unix(1638111600, 0)) // filesystems such as NFS only have 1sec resolution for mtime
+
+	b, err := fsn.GetBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pbn := new(pb.Data)
+	err = proto.Unmarshal(b, pbn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if pbn.Mtime == nil {
+		t.Fatal("mtime is nil")
+	}
+
+	if pbn.Mtime.Seconds == nil {
+		t.Fatal("mtime.Seconds is nil")
+	}
+
+	if *pbn.Mtime.Seconds != 1638111600 {
+		t.Errorf("got mtime seconds %d, wanted %d", *pbn.Mtime.Seconds, 1638111600)
+	}
+
+	if pbn.Mtime.FractionalNanoseconds != nil {
+		t.Fatalf("got mtime.FractionalNanoseconds %v, wanted nil", *pbn.Mtime.FractionalNanoseconds)
+	}
+}
+
 func TestMode(t *testing.T) {
 	fsn := NewFSNode(TFile)
 	fsn.SetData(make([]byte, 128))

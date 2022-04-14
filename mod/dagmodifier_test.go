@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"testing"
 
-	dag "github.com/ipfs/go-merkledag"
 	h "github.com/ipfs/go-unixfs/importer/helpers"
 	trickle "github.com/ipfs/go-unixfs/importer/trickle"
 	uio "github.com/ipfs/go-unixfs/io"
@@ -416,7 +415,7 @@ func testDagTruncate(t *testing.T, opts testu.NodeOpts) {
 // if offset > curNode's size.
 func TestDagSync(t *testing.T) {
 	dserv := testu.GetDAGServ()
-	nd := dag.NodeWithData(unixfs.FilePBData(nil, 0))
+	nd := unixfs.ProtoNodeCIDv1WithData(unixfs.FilePBData(nil, 0))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

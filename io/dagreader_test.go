@@ -204,7 +204,7 @@ func TestTypeFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node = mdag.NodeWithData(data)
+	node = unixfs.ProtoNodeCIDv1WithData(data)
 
 	if _, err := NewDagReader(ctx, node, dserv); err != ErrCantReadSymlinks {
 		t.Fatalf("excepted to get %v, got %v", ErrCantReadSymlinks, err)
@@ -216,7 +216,7 @@ func TestBadPBData(t *testing.T) {
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	node := mdag.NodeWithData([]byte{42})
+	node := unixfs.ProtoNodeCIDv1WithData([]byte{42})
 	_, err := NewDagReader(ctx, node, dserv)
 	if err == nil {
 		t.Fatal("excepted error, got nil")
@@ -241,7 +241,7 @@ func TestMetadataNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := mdag.NodeWithData(data)
+	node := unixfs.ProtoNodeCIDv1WithData(data)
 
 	_, err = NewDagReader(ctx, node, dserv)
 	if err == nil {

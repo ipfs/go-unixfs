@@ -356,14 +356,24 @@ func BytesForMetadata(m *Metadata) ([]byte, error) {
 	return proto.Marshal(pbd)
 }
 
+// ProtoNodeCIDv1WithData returns a ProtoNode with the given data and CIDv1.
+// FIXME: Switch to CIDv1 here until we decide if the switch should happen
+//  in `go-merkledag` itself (see https://github.com/ipfs/go-merkledag/issues/86).
+func ProtoNodeCIDv1WithData(data []byte) *dag.ProtoNode {
+	n := &dag.ProtoNode{}
+	n.SetData(data)
+	n.SetCidBuilder(dag.V1CidPrefix())
+	return n
+}
+
 // EmptyDirNode creates an empty folder Protonode.
 func EmptyDirNode() *dag.ProtoNode {
-	return dag.NodeWithData(FolderPBData())
+	return ProtoNodeCIDv1WithData(FolderPBData())
 }
 
 // EmptyFileNode creates an empty file Protonode.
 func EmptyFileNode() *dag.ProtoNode {
-	return dag.NodeWithData(FilePBData(nil, 0))
+	return ProtoNodeCIDv1WithData(FilePBData(nil, 0))
 }
 
 // ReadUnixFSNodeData extracts the UnixFS data from an IPLD node.

@@ -162,7 +162,7 @@ func TestDirBuilding(t *testing.T) {
 
 	k := nd.Cid()
 
-	if k.String() != "QmY89TkSEVHykWMHDmyejSWFj9CYNtvzw4UwnT9xbc4Zjc" {
+	if k.String() != "QmWd277BEJs7VKLpd6Ki6mC12ESnKcFQAqF5JDJW4TpUjY" {
 		t.Fatalf("output didnt match what we expected (got %s)", k.String())
 	}
 }

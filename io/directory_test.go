@@ -222,12 +222,12 @@ func TestProductionLinkSize(t *testing.T) {
 	link, err := ipld.MakeLink(ft.EmptyDirNode())
 	assert.NoError(t, err)
 	link.Name = "directory_link_name"
-	assert.Equal(t, 53, productionLinkSize(link.Name, link.Cid))
+	assert.Equal(t, 55, productionLinkSize(link.Name, link.Cid))
 
 	link, err = ipld.MakeLink(ft.EmptyFileNode())
 	assert.NoError(t, err)
 	link.Name = "file_link_name"
-	assert.Equal(t, 48, productionLinkSize(link.Name, link.Cid))
+	assert.Equal(t, 50, productionLinkSize(link.Name, link.Cid))
 
 	ds := mdtest.Mock()
 	basicDir := newEmptyBasicDirectory(ds)
@@ -240,7 +240,7 @@ func TestProductionLinkSize(t *testing.T) {
 	link, err = ipld.MakeLink(basicDirNode)
 	assert.NoError(t, err)
 	link.Name = "basic_dir"
-	assert.Equal(t, 43, productionLinkSize(link.Name, link.Cid))
+	assert.Equal(t, 45, productionLinkSize(link.Name, link.Cid))
 }
 
 // Test HAMTDirectory <-> BasicDirectory switch based on directory size. The

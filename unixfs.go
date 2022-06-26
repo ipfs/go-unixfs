@@ -85,6 +85,32 @@ func FolderPBData() []byte {
 	return data
 }
 
+func FolderPBDataWithStat(mode os.FileMode, mtime time.Time) []byte {
+	pbfile := new(pb.Data)
+	typ := pb.Data_Directory
+	pbfile.Type = &typ
+
+	if mode != 0 {
+		pbfile.Mode = proto.Uint32(files.ModePermsToUnixPerms(mode))
+	}
+	if !mtime.IsZero() {
+		pbfile.Mtime = &pb.IPFSTimestamp{
+			Seconds: proto.Int64(mtime.Unix()),
+		}
+
+		if nanos := uint32(mtime.Nanosecond()); nanos > 0 {
+			pbfile.Mtime.Nanos = &nanos
+		}
+	}
+
+	data, err := proto.Marshal(pbfile)
+	if err != nil {
+		//this really shouldnt happen, i promise
+		panic(err)
+	}
+	return data
+}
+
 //WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
 func WrapData(b []byte) []byte {
 	pbdata := new(pb.Data)
@@ -452,6 +478,10 @@ func BytesForMetadata(m *Metadata) ([]byte, error) {
 // EmptyDirNode creates an empty folder Protonode.
 func EmptyDirNode() *dag.ProtoNode {
 	return dag.NodeWithData(FolderPBData())
+}
+
+func EmptyDirNodeWithStat(mode os.FileMode, mtime time.Time) *dag.ProtoNode {
+	return dag.NodeWithData(FolderPBDataWithStat(mode, mtime))
 }
 
 // EmptyFileNode creates an empty file Protonode.

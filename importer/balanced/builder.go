@@ -51,7 +51,6 @@ package balanced
 
 import (
 	"errors"
-
 	ft "github.com/ipfs/go-unixfs"
 	h "github.com/ipfs/go-unixfs/importer/helpers"
 
@@ -130,18 +129,33 @@ import (
 //        +=========+   +=========+   + - - - - +
 //
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
+	var root ipld.Node
+	var err error
+
 	if db.Done() {
-		// No data, return just an empty node.
-		root, err := db.NewLeafNode(nil, ft.TFile)
+		// No data, just create an empty node.
+		root, err = db.NewLeafNode(nil, ft.TFile)
+		// This works without Filestore support (`ProcessFileStore`).
+		// TODO: Why? Is there a test case missing?
+	} else {
+		root, err = layoutData(db)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if db.HasFileAttributes() {
+		err = db.SetFileAttributes(root)
 		if err != nil {
 			return nil, err
 		}
-		// This works without Filestore support (`ProcessFileStore`).
-		// TODO: Why? Is there a test case missing?
-
-		return root, db.Add(root)
 	}
 
+	return root, db.Add(root)
+}
+
+func layoutData(db *h.DagBuilderHelper) (ipld.Node, error) {
 	// The first `root` will be a single leaf node with data
 	// (corner case), after that subsequent `root` nodes will
 	// always be internal nodes (with a depth > 0) that can
@@ -169,7 +183,7 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		}
 	}
 
-	return root, db.Add(root)
+	return root, nil
 }
 
 // fillNodeRec will "fill" the given internal (non-leaf) `node` with data by

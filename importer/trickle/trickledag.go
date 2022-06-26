@@ -19,10 +19,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	ft "github.com/ipfs/go-unixfs"
 	h "github.com/ipfs/go-unixfs/importer/helpers"
-	"time"
 
 	cid "github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -44,6 +44,13 @@ func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 		return nil, err
 	}
 
+	if db.HasFileAttributes() {
+		err = db.SetFileAttributes(root)
+	}
+
+	if err != nil {
+		return nil, err
+	}
 	return root, db.Add(root)
 }
 

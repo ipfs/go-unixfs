@@ -187,45 +187,6 @@ func TestIsDir(t *testing.T) {
 	}
 }
 
-func TestDefaultMode(t *testing.T) {
-	fsn := NewFSNode(TDirectory)
-	mode := fsn.Mode()
-	expectedPerms := os.FileMode(0o755)
-	if mode&os.ModeDir == 0 {
-		t.Fatal("expected mode to represent a directory")
-	}
-	if mode&os.ModePerm != expectedPerms {
-		t.Fatalf("expected default directory permissions to be %O but got %O", expectedPerms, mode&os.ModePerm)
-	}
-
-	fsn = NewFSNode(THAMTShard)
-	mode = fsn.Mode()
-	if mode&os.ModeDir == 0 {
-		t.Fatal("expected mode to represent a directory")
-	}
-	if mode&os.ModePerm != 0o755 {
-		t.Fatalf("expected default directory permissions to be %O but got %O", expectedPerms, mode&os.ModePerm)
-	}
-
-	expectedPerms = 0o644
-	fsn = NewFSNode(TSymlink)
-	mode = fsn.Mode()
-	if mode&os.ModeSymlink == 0 {
-		t.Fatal("expected mode to represent a symbolic link")
-	}
-	if mode&os.ModePerm != 0o644 {
-		t.Fatalf("expected default directory permissions to be %O but got %O", expectedPerms, mode&os.ModePerm)
-	}
-	fsn = NewFSNode(TFile)
-	mode = fsn.Mode()
-	if mode&os.ModePerm != 0o644 {
-		t.Fatalf("expected default directory permissions to be %O but got %O", expectedPerms, mode&os.ModePerm)
-	}
-	if mode&0xFFFFF000 != 0 {
-		t.Fatalf("expected high-order 20 bits of mode to be clear but got %b", (mode&0xFFFFF000)>>12)
-	}
-}
-
 func (n *FSNode) getPbData(t *testing.T) *pb.Data {
 	b, err := n.GetBytes()
 	if err != nil {
@@ -241,9 +202,30 @@ func (n *FSNode) getPbData(t *testing.T) *pb.Data {
 }
 
 func TestMode(t *testing.T) {
-	fsn := NewFSNode(TFile)
-	fileMode := os.FileMode(0o640)
+	fsn := NewFSNode(TDirectory)
+	fsn.SetMode(1)
+	if !fsn.Mode().IsDir() {
+		t.Fatal("expected mode for directory")
+	}
+
+	fsn = NewFSNode(TSymlink)
+	fsn.SetMode(1)
+	if fsn.Mode()&os.ModeSymlink != os.ModeSymlink {
+		t.Fatal("expected mode for symlink")
+	}
+
+	fsn = NewFSNode(TFile)
+
+	// not stored
+	if fsn.Mode() != 0 {
+		t.Fatal("expected mode not to be set")
+	}
+
+	fileMode := os.FileMode(0640)
 	fsn.SetMode(fileMode)
+	if !fsn.Mode().IsRegular() {
+		t.Fatal("expected a regular file mode")
+	}
 	mode := fsn.Mode()
 
 	if mode&os.ModePerm != fileMode {
@@ -302,7 +284,7 @@ func TestMode(t *testing.T) {
 	fsn.SetMode(fileMode | os.ModeSetuid | os.ModeSticky)
 	pbn := fsn.getPbData(t)
 	// unix perms setuid and sticky bits should also be set
-	expected := uint32(0o5000 | (fileMode & os.ModePerm))
+	expected := uint32(05000 | (fileMode & os.ModePerm))
 	if *pbn.Mode != expected {
 		t.Fatalf("expected stored permissions to be %O but got %O", expected, *pbn.Mode)
 	}
@@ -313,12 +295,18 @@ func TestMode(t *testing.T) {
 		t.Fatal("expected file mode to be unset")
 	}
 
+	fsn.SetExtendedMode(1)
+	fsn.SetMode(0)
+	pbn = fsn.getPbData(t)
+	if pbn.Mode == nil {
+		t.Fatal("expected extended mode to be preserved")
+	}
 }
 
 func TestExtendedMode(t *testing.T) {
 	fsn := NewFSNode(TFile)
 	fsn.SetMode(os.ModePerm | os.ModeSetuid | os.ModeSticky)
-	const expectedUnixMode = uint32(0o5777)
+	const expectedUnixMode = uint32(05777)
 
 	expectedExtMode := uint32(0xAAAAA)
 	fsn.SetExtendedMode(expectedExtMode)
@@ -356,6 +344,13 @@ func TestExtendedMode(t *testing.T) {
 	if *pbn.Mode != expectedPbMode {
 		t.Fatalf("expected raw mode to be %b but got %b", expectedPbMode, *pbn.Mode)
 	}
+
+	fsn.SetMode(0)
+	fsn.SetExtendedMode(0)
+	pbn = fsn.getPbData(t)
+	if pbn.Mode != nil {
+		t.Fatal("expected file mode to be unset")
+	}
 }
 
 func (n *FSNode) setPbModTime(seconds *int64, nanos *uint32) {
@@ -372,35 +367,10 @@ func TestModTime(t *testing.T) {
 	expectedUnix := tm.Unix()
 	n := NewFSNode(TFile)
 
-	// unset
+	// not stored
 	mt := n.ModTime()
 	if !mt.IsZero() {
 		t.Fatal("expected modification time not to be set")
-	}
-
-	// invalid timestamps
-	n.setPbModTime(nil, proto.Uint32(1000))
-	mt = n.ModTime()
-	if !mt.IsZero() {
-		t.Fatal("expected modification time not to be set")
-	}
-
-	n.setPbModTime(&expectedUnix, proto.Uint32(0))
-	mt = n.ModTime()
-	if !mt.IsZero() {
-		t.Fatal("expected modification time not to be set")
-	}
-
-	n.setPbModTime(&expectedUnix, proto.Uint32(1000000000))
-	mt = n.ModTime()
-	if !mt.IsZero() {
-		t.Fatal("expected modification time not to be set")
-	}
-
-	n.setPbModTime(&expectedUnix, nil)
-	mt = n.ModTime()
-	if !mt.Equal(time.Unix(expectedUnix, 0)) {
-		t.Fatalf("expected modification time to be %v but got %v", time.Unix(expectedUnix, 0), mt)
 	}
 
 	// valid timestamps
@@ -437,5 +407,30 @@ func TestModTime(t *testing.T) {
 	mt = n.ModTime()
 	if !mt.Equal(tm) {
 		t.Fatalf("expected modification time to be %v but got %v", tm, mt)
+	}
+
+	n.setPbModTime(&expectedUnix, nil)
+	mt = n.ModTime()
+	if !mt.Equal(time.Unix(expectedUnix, 0)) {
+		t.Fatalf("expected modification time to be %v but got %v", time.Unix(expectedUnix, 0), mt)
+	}
+
+	// invalid timestamps
+	n.setPbModTime(nil, proto.Uint32(1000))
+	mt = n.ModTime()
+	if !mt.IsZero() {
+		t.Fatal("expected modification time not to be set")
+	}
+
+	n.setPbModTime(&expectedUnix, proto.Uint32(0))
+	mt = n.ModTime()
+	if !mt.IsZero() {
+		t.Fatal("expected modification time not to be set")
+	}
+
+	n.setPbModTime(&expectedUnix, proto.Uint32(1000000000))
+	mt = n.ModTime()
+	if !mt.IsZero() {
+		t.Fatal("expected modification time not to be set")
 	}
 }

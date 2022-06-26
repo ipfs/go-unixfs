@@ -6,6 +6,7 @@ package unixfs
 import (
 	"errors"
 	"fmt"
+	files "github.com/ipfs/go-ipfs-files"
 	"os"
 	"time"
 
@@ -332,49 +333,40 @@ func (n *FSNode) IsDir() bool {
 	}
 }
 
-// Mode returns the stored file permissions, or suitable default if no permissions are stored.
-func (n *FSNode) Mode() os.FileMode {
-	var mode os.FileMode = 0
-	modePerms := n.format.GetMode() & 0xFFF
-	if modePerms == 0 {
+// Mode returns the optionally stored file permissions
+func (n *FSNode) Mode() (m os.FileMode) {
+	perms := n.format.GetMode() & 0xFFF
+	if perms != 0 {
+		m = files.UnixPermsToModePerms(perms)
 		switch n.Type() {
-		case TFile, TSymlink:
-			mode = 0o644
 		case pb.Data_Directory, pb.Data_HAMTShard:
-			mode = 0o755
+			m |= os.ModeDir
+		case pb.Data_Symlink:
+			m |= os.ModeSymlink
 		}
-	} else {
-		// convert unix mode permissions to os.FileMode permissions
-		mode = os.FileMode((modePerms & 0x1FF) | (modePerms & 0xC00 << 12) | (modePerms & 0x200 << 11))
 	}
-
-	switch n.Type() {
-	case pb.Data_Directory, pb.Data_HAMTShard:
-		mode |= os.ModeDir
-	case pb.Data_Symlink:
-		mode |= os.ModeSymlink
-	}
-
-	return mode
+	return m
 }
 
-// SetMode stores the given file permissions, or nullifies stored permissions if no permissions
-// were provided and there are no extended bits set.
+// SetMode stores the given mode permissions, or nullifies stored permissions
+// if none were provided and there are no extended bits set.
 func (n *FSNode) SetMode(m os.FileMode) {
-	// convert os.FileMode to unix mode permissions
-	modePerms := uint32((m >> 12) | (m & os.ModeSticky >> 11) | (m & os.ModePerm))
-	n.SetModeFromUnixPermissions(modePerms)
+	n.SetModeFromUnixPermissions(files.ModePermsToUnixPerms(m))
 }
 
-func (n *FSNode) SetModeFromUnixPermissions(permissions uint32) {
-	// when set, preserve existing most significant 20 bits
-	newMode := (n.format.GetMode() & 0xFFFFF000) | (permissions & 0xFFF)
+// SetModeFromUnixPermissions stores the given unix permissions, or nullifies stored permissions
+// if none were provided and there are no extended bits set.
+func (n *FSNode) SetModeFromUnixPermissions(unixPerms uint32) {
+	// preserve existing most significant 20 bits
+	newMode := (n.format.GetMode() & 0xFFFFF000) | (unixPerms & 0xFFF)
 
-	if newMode != 0 {
-		n.format.Mode = &newMode
-	} else {
-		n.format.Mode = nil
+	if unixPerms == 0 {
+		if newMode&0xFFFFF000 == 0 {
+			n.format.Mode = nil
+			return
+		}
 	}
+	n.format.Mode = &newMode
 }
 
 // ExtendedMode returns the 20 bits of extended file mode
@@ -385,7 +377,12 @@ func (n *FSNode) ExtendedMode() uint32 {
 // SetExtendedMode stores the 20 bits of extended file mode, only the first
 // 20 bits of the `mode` argument are used, the remaining 12 bits are ignored.
 func (n *FSNode) SetExtendedMode(mode uint32) {
-	n.format.Mode = proto.Uint32((mode << 12) | (0xFFF & n.format.GetMode()))
+	newMode := (mode << 12) | (0xFFF & n.format.GetMode())
+	if newMode == 0 {
+		n.format.Mode = nil
+	} else {
+		n.format.Mode = &newMode
+	}
 }
 
 // ModTime returns the stored last modified timestamp if available.
@@ -404,7 +401,7 @@ func (n *FSNode) ModTime() time.Time {
 	return time.Unix(*ts.Seconds, int64(*ts.Nanos))
 }
 
-// SetModTime stores the given last modified timestamp, or nullifies stored timestamp if one wasn't provided.
+// SetModTime stores the given last modified timestamp, otherwise nullifies stored timestamp.
 func (n *FSNode) SetModTime(ts time.Time) {
 	if ts.IsZero() {
 		n.format.Mtime = nil
@@ -417,7 +414,7 @@ func (n *FSNode) SetModTime(ts time.Time) {
 
 	n.format.Mtime.Seconds = proto.Int64(ts.Unix())
 	if ts.Nanosecond() > 0 {
-	 	n.format.Mtime.Nanos = proto.Uint32(uint32(ts.Nanosecond()))
+		n.format.Mtime.Nanos = proto.Uint32(uint32(ts.Nanosecond()))
 	} else {
 		n.format.Mtime.Nanos = nil
 	}

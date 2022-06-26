@@ -191,7 +191,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 			return newUnixfsDir(ctx, dserv, dn)
 		}
 		if fsn.Type() == ft.TSymlink {
-			return files.NewLinkFile(string(fsn.Data()), nil), nil
+			return files.NewSymlinkFile(string(fsn.Data()), fsn.ModTime()), nil
 		}
 
 	case *dag.RawNode:

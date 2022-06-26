@@ -23,6 +23,8 @@ type ufsDirectory struct {
 	dserv ipld.DAGService
 	dir   uio.Directory
 	size  int64
+	mode  os.FileMode
+	mtime time.Time
 }
 
 type ufsIterator struct {
@@ -125,11 +127,11 @@ func (d *ufsDirectory) Size() (int64, error) {
 }
 
 func (d *ufsDirectory) Mode() os.FileMode {
-	panic("implement me")
+	return d.mode
 }
 
 func (d *ufsDirectory) ModTime() time.Time {
-	panic("implement me")
+	return d.mtime
 }
 
 type ufsFile struct {
@@ -159,12 +161,19 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 		return nil, err
 	}
 
+	fsn, err := ft.FSNodeFromBytes(nd.Data())
+	if err != nil {
+		return nil, err
+	}
+
 	return &ufsDirectory{
 		ctx:   ctx,
 		dserv: dserv,
 
-		dir:  dir,
-		size: int64(size),
+		dir:   dir,
+		size:  int64(size),
+		mode:  fsn.Mode(),
+		mtime: fsn.ModTime(),
 	}, nil
 }
 

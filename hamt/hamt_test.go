@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -709,4 +710,33 @@ func TestHamtBadSize(t *testing.T) {
 	if err == nil {
 		t.Fatal("should have failed to construct hamt with bad size")
 	}
+}
+
+func TestChilderModifyChildrenAndLinks(t *testing.T) {
+	ds := mdtest.Mock()
+	sh, _ := NewShard(ds, 256)
+
+	ch := newChilder(ds, 1024)
+	ch.makeChilder(nil, []*ipld.Link{{}})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100000; i++ {
+		wg.Add(2)
+		go func() {
+			ch.set(sh, 0)
+			wg.Done()
+		}()
+		go func() {
+			ch.setLink(&ipld.Link{}, 0)
+			wg.Done()
+		}()
+
+		chl := ch.childOrLink(0)
+		if chl.child == nil && chl.link == nil {
+			t.Fatal("both slices are nil", i)
+		}
+
+	}
+
+	wg.Wait()
 }

@@ -89,7 +89,7 @@ func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
 	return NewShardValue(dserv, size, "", nil)
 }
 
-// NewShard creates a new, empty HAMT shard with the given key, value and size.
+// NewShardValue creates a new, empty HAMT shard with the given key, value and size.
 func NewShardValue(dserv ipld.DAGService, size int, key string, value *ipld.Link) (*Shard, error) {
 	ds, err := makeShard(dserv, size, key, value)
 	if err != nil {

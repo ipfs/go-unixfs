@@ -9,8 +9,10 @@
 // wikipedia article is the collapsing of empty shards.
 // Given the following tree: ( '[' = shards, '{' = values )
 // [ 'A' ] -> [ 'B' ] -> { "ABC" }
-//    |       L-> { "ABD" }
-//    L-> { "ASDF" }
+//
+//	|       L-> { "ABD" }
+//	L-> { "ASDF" }
+//
 // If we simply removed "ABC", we would end up with a tree where shard 'B' only
 // has a single child.  This causes two issues, the first, is that now we have
 // an extra lookup required to get to "ABD".  The second issue is that now we
@@ -84,7 +86,12 @@ type Shard struct {
 
 // NewShard creates a new, empty HAMT shard with the given size.
 func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
-	ds, err := makeShard(dserv, size)
+	return NewShardValue(dserv, size, "", nil)
+}
+
+// NewShardValue creates a new, empty HAMT shard with the given key, value and size.
+func NewShardValue(dserv ipld.DAGService, size int, key string, value *ipld.Link) (*Shard, error) {
+	ds, err := makeShard(dserv, size, key, value)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +101,7 @@ func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
 	return ds, nil
 }
 
-func makeShard(ds ipld.DAGService, size int) (*Shard, error) {
+func makeShard(ds ipld.DAGService, size int, key string, val *ipld.Link) (*Shard, error) {
 	lg2s, err := Logtwo(size)
 	if err != nil {
 		return nil, err
@@ -107,6 +114,9 @@ func makeShard(ds ipld.DAGService, size int) (*Shard, error) {
 		childer:      newChilder(ds, size),
 		tableSize:    size,
 		dserv:        ds,
+
+		key: key,
+		val: val,
 	}
 
 	s.childer.sd = s
@@ -136,7 +146,7 @@ func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 
 	size := int(fsn.Fanout())
 
-	ds, err := makeShard(dserv, size)
+	ds, err := makeShard(dserv, size, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +222,7 @@ func (ds *Shard) Node() (ipld.Node, error) {
 
 func (ds *Shard) makeShardValue(lnk *ipld.Link) (*Shard, error) {
 	lnk2 := *lnk
-	s, err := makeShard(ds.dserv, ds.tableSize)
+	s, err := makeShard(ds.dserv, ds.tableSize, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +236,26 @@ func (ds *Shard) makeShardValue(lnk *ipld.Link) (*Shard, error) {
 // Set sets 'name' = nd in the HAMT
 func (ds *Shard) Set(ctx context.Context, name string, nd ipld.Node) error {
 	_, err := ds.Swap(ctx, name, nd)
+	return err
+}
+
+// Set sets 'name' = nd in the HAMT, using directly the information in the
+// given link. This avoids writing the given node, then reading it to making a
+// link out of it.
+func (ds *Shard) SetLink(ctx context.Context, name string, lnk *ipld.Link) error {
+	hv := newHashBits(name)
+
+	newLink := ipld.Link{
+		Name: lnk.Name,
+		Size: lnk.Size,
+		Cid:  lnk.Cid,
+	}
+
+	// FIXME: We don't need to set the name here, it will get overwritten.
+	//  This is confusing, confirm and remove this line.
+	newLink.Name = ds.linkNamePrefix(0) + name
+
+	_, err := ds.swapValue(ctx, hv, name, &newLink)
 	return err
 }
 
@@ -440,11 +470,11 @@ func (ds *Shard) walkChildren(processLinkValues func(formattedLink *ipld.Link) e
 
 // parallelShardWalk is quite similar to the DAG walking algorithm from https://github.com/ipfs/go-merkledag/blob/594e515f162e764183243b72c2ba84f743424c8c/merkledag.go#L464
 // However, there are a few notable differences:
-// 1. Some children are actualized Shard structs and some are in the blockstore, this will leverage walking over the in memory Shards as well as the stored blocks
-// 2. Instead of just passing each child into the worker pool by itself we group them so that we can leverage optimizations from GetMany.
-//    This optimization also makes the walk a little more biased towards depth (as opposed to BFS) in the earlier part of the DAG.
-//    This is particularly helpful for operations like estimating the directory size which should complete quickly when possible.
-// 3. None of the extra options from that package are needed
+//  1. Some children are actualized Shard structs and some are in the blockstore, this will leverage walking over the in memory Shards as well as the stored blocks
+//  2. Instead of just passing each child into the worker pool by itself we group them so that we can leverage optimizations from GetMany.
+//     This optimization also makes the walk a little more biased towards depth (as opposed to BFS) in the earlier part of the DAG.
+//     This is particularly helpful for operations like estimating the directory size which should complete quickly when possible.
+//  3. None of the extra options from that package are needed
 func parallelShardWalk(ctx context.Context, root *Shard, dserv ipld.DAGService, processShardValues func(formattedLink *ipld.Link) error) error {
 	const concurrency = 32
 
@@ -773,7 +803,11 @@ func (s *childer) insert(key string, lnk *ipld.Link, idx int) error {
 
 	lnk.Name = s.sd.linkNamePrefix(idx) + key
 	i := s.sliceIndex(idx)
-	sd := &Shard{key: key, val: lnk}
+
+	sd, err := NewShardValue(s.dserv, 256, key, lnk)
+	if err != nil {
+		return err
+	}
 
 	s.children = append(s.children[:i], append([]*Shard{sd}, s.children[i:]...)...)
 	s.links = append(s.links[:i], append([]*ipld.Link{nil}, s.links[i:]...)...)

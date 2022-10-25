@@ -72,7 +72,7 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 	return data
 }
 
-//FolderPBData returns Bytes that represent a Directory.
+// FolderPBData returns Bytes that represent a Directory.
 func FolderPBData() []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_Directory
@@ -112,7 +112,7 @@ func FolderPBDataWithStat(mode os.FileMode, mtime time.Time) []byte {
 	return data
 }
 
-//WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
+// WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
 func WrapData(b []byte) []byte {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Raw
@@ -129,7 +129,7 @@ func WrapData(b []byte) []byte {
 	return out
 }
 
-//SymlinkData returns a `Data_Symlink` protobuf message for the path you specify.
+// SymlinkData returns a `Data_Symlink` protobuf message for the path you specify.
 func SymlinkData(path string) ([]byte, error) {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Symlink

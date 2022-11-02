@@ -61,11 +61,12 @@ func NewDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (DagRe
 			return nil, err
 		}
 
+		mode = fsNode.Mode()
+		modTime = fsNode.ModTime()
+
 		switch fsNode.Type() {
 		case unixfs.TFile, unixfs.TRaw:
 			size = fsNode.FileSize()
-			mode = fsNode.Mode()
-			modTime = fsNode.ModTime()
 
 		case unixfs.TDirectory, unixfs.THAMTShard:
 			// Dont allow reading directories

@@ -72,6 +72,22 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 	return data
 }
 
+func FilePBDataWithStat(data []byte, totalsize uint64, mode os.FileMode, mtime time.Time) []byte {
+	pbfile := new(pb.Data)
+	typ := pb.Data_File
+	pbfile.Type = &typ
+	pbfile.Data = data
+	pbfile.Filesize = proto.Uint64(totalsize)
+
+	pbDataAddStat(pbfile, mode, mtime)
+
+	data, err := proto.Marshal(pbfile)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
 // FolderPBData returns Bytes that represent a Directory.
 func FolderPBData() []byte {
 	pbfile := new(pb.Data)
@@ -91,18 +107,7 @@ func FolderPBDataWithStat(mode os.FileMode, mtime time.Time) []byte {
 	typ := pb.Data_Directory
 	pbfile.Type = &typ
 
-	if mode != 0 {
-		pbfile.Mode = proto.Uint32(files.ModePermsToUnixPerms(mode))
-	}
-	if !mtime.IsZero() {
-		pbfile.Mtime = &pb.IPFSTimestamp{
-			Seconds: proto.Int64(mtime.Unix()),
-		}
-
-		if nanos := uint32(mtime.Nanosecond()); nanos > 0 {
-			pbfile.Mtime.Nanos = &nanos
-		}
-	}
+	pbDataAddStat(pbfile, mode, mtime)
 
 	data, err := proto.Marshal(pbfile)
 	if err != nil {
@@ -110,6 +115,21 @@ func FolderPBDataWithStat(mode os.FileMode, mtime time.Time) []byte {
 		panic(err)
 	}
 	return data
+}
+
+func pbDataAddStat(data *pb.Data, mode os.FileMode, mtime time.Time) {
+	if mode != 0 {
+		data.Mode = proto.Uint32(files.ModePermsToUnixPerms(mode))
+	}
+	if !mtime.IsZero() {
+		data.Mtime = &pb.IPFSTimestamp{
+			Seconds: proto.Int64(mtime.Unix()),
+		}
+
+		if nanos := uint32(mtime.Nanosecond()); nanos > 0 {
+			data.Mtime.Nanos = &nanos
+		}
+	}
 }
 
 // WrapData marshals raw bytes into a `Data_Raw` type protobuf message.

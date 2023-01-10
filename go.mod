@@ -3,7 +3,7 @@ module github.com/ipfs/go-unixfs
 require (
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a
 	github.com/gogo/protobuf v1.3.2
-	github.com/ipfs/go-bitfield v1.0.0
+	github.com/ipfs/go-bitfield v1.1.0
 	github.com/ipfs/go-block-format v0.0.3
 	github.com/ipfs/go-blockservice v0.2.1
 	github.com/ipfs/go-cid v0.3.2

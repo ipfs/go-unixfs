@@ -37,8 +37,8 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
-	github.com/ipld/go-codec-dagpb v1.3.0 // indirect
-	github.com/ipld/go-ipld-prime v0.11.0 // indirect
+	github.com/ipld/go-codec-dagpb v1.5.0 // indirect
+	github.com/ipld/go-ipld-prime v0.18.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.1.1 // indirect
 	github.com/koron/go-ssdp v0.0.3 // indirect

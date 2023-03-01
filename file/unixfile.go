@@ -3,6 +3,7 @@ package unixfile
 import (
 	"context"
 	"errors"
+	"github.com/ipfs/go-cid"
 
 	ft "github.com/ipfs/go-unixfs"
 	uio "github.com/ipfs/go-unixfs/io"
@@ -122,12 +123,25 @@ func (d *ufsDirectory) Size() (int64, error) {
 	return d.size, nil
 }
 
+func (d *ufsDirectory) Cid() cid.Cid {
+	nd, err := d.dir.GetNode()
+	if err != nil {
+		return cid.Undef
+	}
+	return nd.Cid()
+}
+
 type ufsFile struct {
 	uio.DagReader
+	nd ipld.Node
 }
 
 func (f *ufsFile) Size() (int64, error) {
 	return int64(f.DagReader.Size()), nil
+}
+
+func (f *ufsFile) Cid() cid.Cid {
+	return f.nd.Cid()
 }
 
 func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode) (files.Directory, error) {
@@ -176,6 +190,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 
 	return &ufsFile{
 		DagReader: dr,
+		nd:        nd,
 	}, nil
 }
 

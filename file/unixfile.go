@@ -144,6 +144,15 @@ func (f *ufsFile) Cid() cid.Cid {
 	return f.nd.Cid()
 }
 
+type ufsSymLink struct {
+	files.File
+	nd ipld.Node
+}
+
+func (s *ufsSymLink) Cid() cid.Cid {
+	return s.nd.Cid()
+}
+
 func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode) (files.Directory, error) {
 	dir, err := uio.NewDirectoryFromNode(dserv, nd)
 	if err != nil {
@@ -175,7 +184,7 @@ func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (fi
 			return newUnixfsDir(ctx, dserv, dn)
 		}
 		if fsn.Type() == ft.TSymlink {
-			return files.NewLinkFile(string(fsn.Data()), nil), nil
+			return &ufsSymLink{File: files.NewLinkFile(string(fsn.Data()), nil), nd: nd}, nil
 		}
 
 	case *dag.RawNode:

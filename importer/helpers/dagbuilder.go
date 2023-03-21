@@ -11,11 +11,11 @@ import (
 	ft "github.com/ipfs/go-unixfs"
 	pb "github.com/ipfs/go-unixfs/pb"
 
+	"github.com/ipfs/boxo/files"
 	cid "github.com/ipfs/go-cid"
 	chunker "github.com/ipfs/go-ipfs-chunker"
 	pi "github.com/ipfs/go-ipfs-posinfo"
 	ipld "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-libipfs/files"
 )
 
 var ErrMissingFsRef = errors.New("missing file path or URL, can't create filestore reference")

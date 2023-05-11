@@ -41,6 +41,8 @@ import (
 
 const (
 	// HashMurmur3 is the multiformats identifier for Murmur3
+	//
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/hamt.HashMurmur3
 	HashMurmur3 uint64 = 0x22
 )
 
@@ -53,6 +55,8 @@ func (ds *Shard) isValueNode() bool {
 }
 
 // A Shard represents the HAMT. It should be initialized with NewShard().
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/hamt.Shard
 type Shard struct {
 	childer *childer
 
@@ -85,11 +89,15 @@ type Shard struct {
 }
 
 // NewShard creates a new, empty HAMT shard with the given size.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/hamt.NewShard
 func NewShard(dserv ipld.DAGService, size int) (*Shard, error) {
 	return NewShardValue(dserv, size, "", nil)
 }
 
 // NewShardValue creates a new, empty HAMT shard with the given key, value and size.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/hamt.NewShardValue
 func NewShardValue(dserv ipld.DAGService, size int, key string, value *ipld.Link) (*Shard, error) {
 	ds, err := makeShard(dserv, size, key, value)
 	if err != nil {
@@ -129,6 +137,8 @@ func makeShard(ds ipld.DAGService, size int, key string, val *ipld.Link) (*Shard
 }
 
 // NewHamtFromDag creates new a HAMT shard from the given DAG.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/hamt.NewHamtFromDag
 func NewHamtFromDag(dserv ipld.DAGService, nd ipld.Node) (*Shard, error) {
 	pbnd, ok := nd.(*dag.ProtoNode)
 	if !ok {

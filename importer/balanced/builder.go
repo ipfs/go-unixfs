@@ -129,6 +129,8 @@ import (
 //	  +=========+   +=========+   + - - - - +
 //	  | Chunk 1 |   | Chunk 2 |   | Chunk 3 |
 //	  +=========+   +=========+   + - - - - +
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/balanced.Layout
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	if db.Done() {
 		// No data, return just an empty node.

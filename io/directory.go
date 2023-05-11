@@ -24,10 +24,14 @@ var log = logging.Logger("unixfs")
 // The size is not the *exact* block size of the encoded BasicDirectory but just
 // the estimated size based byte length of links name and CID (BasicDirectory's
 // ProtoNode doesn't use the Data field so this estimate is pretty accurate).
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.HAMTShardingSize
 var HAMTShardingSize = int(256 * units.KiB)
 
 // DefaultShardWidth is the default value used for hamt sharding width.
 // Needs to be a power of two (shard entry size) and multiple of 8 (bitfield size).
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.DefaultShardWidth
 var DefaultShardWidth = 256
 
 // Directory defines a UnixFS directory. It is used for creating, reading and
@@ -37,6 +41,8 @@ var DefaultShardWidth = 256
 // It just allows to perform explicit edits on a single directory, working with
 // directory trees is out of its scope, they are managed by the MFS layer
 // (which is the main consumer of this interface).
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.Directory
 type Directory interface {
 
 	// SetCidBuilder sets the CID Builder of the root node.
@@ -88,6 +94,8 @@ func init() {
 
 // BasicDirectory is the basic implementation of `Directory`. All the entries
 // are stored in a single node.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.BasicDirectory
 type BasicDirectory struct {
 	node  *mdag.ProtoNode
 	dserv ipld.DAGService
@@ -102,6 +110,8 @@ type BasicDirectory struct {
 
 // HAMTDirectory is the HAMT implementation of `Directory`.
 // (See package `hamt` for more information.)
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.HAMTDirectory
 type HAMTDirectory struct {
 	shard *hamt.Shard
 	dserv ipld.DAGService
@@ -128,15 +138,21 @@ func newBasicDirectoryFromNode(dserv ipld.DAGService, node *mdag.ProtoNode) *Bas
 
 // NewDirectory returns a Directory implemented by DynamicDirectory
 // containing a BasicDirectory that can be converted to a HAMTDirectory.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.NewDirectory
 func NewDirectory(dserv ipld.DAGService) Directory {
 	return &DynamicDirectory{newEmptyBasicDirectory(dserv)}
 }
 
 // ErrNotADir implies that the given node was not a unixfs directory
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ErrNotADir
 var ErrNotADir = fmt.Errorf("merkledag node was not a directory or shard")
 
 // NewDirectoryFromNode loads a unixfs directory from the given IPLD node and
 // DAGService.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.NewDirectoryFromNode
 func NewDirectoryFromNode(dserv ipld.DAGService, node ipld.Node) (Directory, error) {
 	protoBufNode, ok := node.(*mdag.ProtoNode)
 	if !ok {
@@ -523,6 +539,8 @@ func (d *HAMTDirectory) sizeBelowThreshold(ctx context.Context, sizeChange int) 
 // DynamicDirectory wraps a Directory interface and provides extra logic
 // to switch from BasicDirectory to HAMTDirectory and backwards based on
 // size.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.DynamicDirectory
 type DynamicDirectory struct {
 	Directory
 }

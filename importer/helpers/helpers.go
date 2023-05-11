@@ -5,6 +5,8 @@ import (
 )
 
 // BlockSizeLimit specifies the maximum size an imported block can have.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.BlockSizeLimit
 var BlockSizeLimit = 1048576 // 1 MB
 
 // rough estimates on expected sizes
@@ -25,7 +27,11 @@ var roughLinkSize = 34 + 8 + 5   // sha256 multihash + size + no name + protobuf
 //	var DefaultLinksPerBlock = (roughLinkBlockSize / roughLinkSize)
 //	                         = ( 8192 / 47 )
 //	                         = (approximately) 174
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.DefaultLinksPerBlock
 var DefaultLinksPerBlock = roughLinkBlockSize / roughLinkSize
 
 // ErrSizeLimitExceeded signals that a block is larger than BlockSizeLimit.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.ErrSizeLimitExceeded
 var ErrSizeLimitExceeded = fmt.Errorf("object size limit exceeded")

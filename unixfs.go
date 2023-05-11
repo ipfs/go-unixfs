@@ -16,6 +16,8 @@ import (
 
 // A LinkResult for any parallel enumeration of links
 // TODO: Should this live in go-ipld-format?
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.LinkResult
 type LinkResult struct {
 	Link *ipld.Link
 	Err  error
@@ -23,22 +25,32 @@ type LinkResult struct {
 
 // Shorthands for protobuffer types
 const (
-	TRaw       = pb.Data_Raw
-	TFile      = pb.Data_File
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.TRaw
+	TRaw = pb.Data_Raw
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.TFile
+	TFile = pb.Data_File
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.TDirectory
 	TDirectory = pb.Data_Directory
-	TMetadata  = pb.Data_Metadata
-	TSymlink   = pb.Data_Symlink
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.TMetadata
+	TMetadata = pb.Data_Metadata
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.TSymlink
+	TSymlink = pb.Data_Symlink
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.THAMTShard
 	THAMTShard = pb.Data_HAMTShard
 )
 
 // Common errors
 var (
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.ErrMalformedFileFormat
 	ErrMalformedFileFormat = errors.New("malformed data in file format")
-	ErrUnrecognizedType    = errors.New("unrecognized node type")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.ErrUnrecognizedType
+	ErrUnrecognizedType = errors.New("unrecognized node type")
 )
 
 // FromBytes unmarshals a byte slice as protobuf Data.
 // Deprecated: Use `FSNodeFromBytes` instead to avoid direct manipulation of `pb.Data`.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.FromBytes
 func FromBytes(data []byte) (*pb.Data, error) {
 	pbdata := new(pb.Data)
 	err := proto.Unmarshal(data, pbdata)
@@ -50,6 +62,8 @@ func FromBytes(data []byte) (*pb.Data, error) {
 
 // FilePBData creates a protobuf File with the given
 // byte slice and returns the marshaled protobuf bytes representing it.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.FilePBData
 func FilePBData(data []byte, totalsize uint64) []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_File
@@ -70,6 +84,8 @@ func FilePBData(data []byte, totalsize uint64) []byte {
 }
 
 // FolderPBData returns Bytes that represent a Directory.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.FolderPBData
 func FolderPBData() []byte {
 	pbfile := new(pb.Data)
 	typ := pb.Data_Directory
@@ -84,6 +100,8 @@ func FolderPBData() []byte {
 }
 
 // WrapData marshals raw bytes into a `Data_Raw` type protobuf message.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.WrapData
 func WrapData(b []byte) []byte {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Raw
@@ -101,6 +119,8 @@ func WrapData(b []byte) []byte {
 }
 
 // SymlinkData returns a `Data_Symlink` protobuf message for the path you specify.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.SymlinkData
 func SymlinkData(path string) ([]byte, error) {
 	pbdata := new(pb.Data)
 	typ := pb.Data_Symlink
@@ -116,6 +136,8 @@ func SymlinkData(path string) ([]byte, error) {
 }
 
 // HAMTShardData return a `Data_HAMTShard` protobuf message
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.HAMTShardData
 func HAMTShardData(data []byte, fanout uint64, hashType uint64) ([]byte, error) {
 	pbdata := new(pb.Data)
 	typ := pb.Data_HAMTShard
@@ -133,6 +155,8 @@ func HAMTShardData(data []byte, fanout uint64, hashType uint64) ([]byte, error) 
 }
 
 // UnwrapData unmarshals a protobuf messages and returns the contents.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.UnwrapData
 func UnwrapData(data []byte) ([]byte, error) {
 	pbdata := new(pb.Data)
 	err := proto.Unmarshal(data, pbdata)
@@ -146,6 +170,8 @@ func UnwrapData(data []byte) ([]byte, error) {
 // For raw data it simply provides the length of it. For Data_Files, it
 // will return the associated filesize. Note that Data_Directories will
 // return an error.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.DataSize
 func DataSize(data []byte) (uint64, error) {
 	pbdata := new(pb.Data)
 	err := proto.Unmarshal(data, pbdata)
@@ -173,6 +199,8 @@ func size(pbdata *pb.Data) (uint64, error) {
 // The `NewFSNode` constructor should be used instead of just calling `new(FSNode)`
 // to guarantee that the required (`Type` and `Filesize`) fields in the `format`
 // structure are initialized before marshaling (in `GetBytes()`).
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.FSNode
 type FSNode struct {
 
 	// UnixFS format defined as a protocol buffers message.
@@ -180,6 +208,8 @@ type FSNode struct {
 }
 
 // FSNodeFromBytes unmarshal a protobuf message onto an FSNode.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.FSNodeFromBytes
 func FSNodeFromBytes(b []byte) (*FSNode, error) {
 	n := new(FSNode)
 	err := proto.Unmarshal(b, &n.format)
@@ -202,6 +232,8 @@ func FSNodeFromBytes(b []byte) (*FSNode, error) {
 // (If it wasn't initialized there could be cases where `Filesize` could
 // have been left at nil, when the `FSNode` was created but no data or
 // child nodes were set to adjust it, as is the case in `NewLeaf()`.)
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.NewFSNode
 func NewFSNode(dataType pb.Data_DataType) *FSNode {
 	n := new(FSNode)
 	n.format.Type = &dataType
@@ -305,6 +337,8 @@ func (n *FSNode) IsDir() bool {
 }
 
 // Metadata is used to store additional FSNode information.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.Metadata
 type Metadata struct {
 	MimeType string
 	Size     uint64
@@ -312,6 +346,8 @@ type Metadata struct {
 
 // MetadataFromBytes Unmarshals a protobuf Data message into Metadata.
 // The provided slice should have been encoded with BytesForMetadata().
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.MetadataFromBytes
 func MetadataFromBytes(b []byte) (*Metadata, error) {
 	pbd := new(pb.Data)
 	err := proto.Unmarshal(b, pbd)
@@ -342,6 +378,8 @@ func (m *Metadata) Bytes() ([]byte, error) {
 // BytesForMetadata wraps the given Metadata as a profobuf message of Data type,
 // setting the DataType to Metadata. The wrapped bytes are itself the
 // result of calling m.Bytes().
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.BytesForMetadata
 func BytesForMetadata(m *Metadata) ([]byte, error) {
 	pbd := new(pb.Data)
 	pbd.Filesize = proto.Uint64(m.Size)
@@ -357,11 +395,15 @@ func BytesForMetadata(m *Metadata) ([]byte, error) {
 }
 
 // EmptyDirNode creates an empty folder Protonode.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.EmptyDirNode
 func EmptyDirNode() *dag.ProtoNode {
 	return dag.NodeWithData(FolderPBData())
 }
 
 // EmptyFileNode creates an empty file Protonode.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.EmptyFileNode
 func EmptyFileNode() *dag.ProtoNode {
 	return dag.NodeWithData(FilePBData(nil, 0))
 }
@@ -369,6 +411,8 @@ func EmptyFileNode() *dag.ProtoNode {
 // ReadUnixFSNodeData extracts the UnixFS data from an IPLD node.
 // Raw nodes are (also) processed because they are used as leaf
 // nodes containing (only) UnixFS data.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.ReadUnixFSNodeData
 func ReadUnixFSNodeData(node ipld.Node) (data []byte, err error) {
 	switch node := node.(type) {
 
@@ -403,6 +447,8 @@ func ReadUnixFSNodeData(node ipld.Node) (data []byte, err error) {
 
 // Extract the `unixfs.FSNode` from the `ipld.Node` (assuming this
 // was implemented by a `mdag.ProtoNode`).
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs.ExtractFSNode
 func ExtractFSNode(node ipld.Node) (*FSNode, error) {
 	protoNode, ok := node.(*dag.ProtoNode)
 	if !ok {

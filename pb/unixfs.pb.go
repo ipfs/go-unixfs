@@ -21,17 +21,25 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_DataType
 type Data_DataType int32
 
 const (
-	Data_Raw       Data_DataType = 0
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_Raw
+	Data_Raw Data_DataType = 0
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_Directory
 	Data_Directory Data_DataType = 1
-	Data_File      Data_DataType = 2
-	Data_Metadata  Data_DataType = 3
-	Data_Symlink   Data_DataType = 4
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_File
+	Data_File Data_DataType = 2
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_Metadata
+	Data_Metadata Data_DataType = 3
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_Symlink
+	Data_Symlink Data_DataType = 4
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_HAMTShard
 	Data_HAMTShard Data_DataType = 5
 )
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_DataType_name
 var Data_DataType_name = map[int32]string{
 	0: "Raw",
 	1: "Directory",
@@ -41,6 +49,7 @@ var Data_DataType_name = map[int32]string{
 	5: "HAMTShard",
 }
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data_DataType_value
 var Data_DataType_value = map[string]int32{
 	"Raw":       0,
 	"Directory": 1,
@@ -73,6 +82,7 @@ func (Data_DataType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_e2fd76cc44dfc7c3, []int{0, 0}
 }
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Data
 type Data struct {
 	Type                 *Data_DataType `protobuf:"varint,1,req,name=Type,enum=unixfs.pb.Data_DataType" json:"Type,omitempty"`
 	Data                 []byte         `protobuf:"bytes,2,opt,name=Data" json:"Data,omitempty"`
@@ -151,6 +161,7 @@ func (m *Data) GetFanout() uint64 {
 	return 0
 }
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/pb.Metadata
 type Metadata struct {
 	MimeType             *string  `protobuf:"bytes,1,opt,name=MimeType" json:"MimeType,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

@@ -12,6 +12,8 @@ import (
 
 // ResolveUnixfsOnce resolves a single hop of a path through a graph in a
 // unixfs context. This includes handling traversing sharded directories.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ResolveUnixfsOnce
 func ResolveUnixfsOnce(ctx context.Context, ds ipld.NodeGetter, nd ipld.Node, names []string) (*ipld.Link, []string, error) {
 	pn, ok := nd.(*dag.ProtoNode)
 	if ok {

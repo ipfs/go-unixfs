@@ -150,6 +150,7 @@ func newUnixfsDir(ctx context.Context, dserv ipld.DAGService, nd *dag.ProtoNode)
 	}, nil
 }
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/file.NewUnixfsFile
 func NewUnixfsFile(ctx context.Context, dserv ipld.DAGService, nd ipld.Node) (files.Node, error) {
 	switch dn := nd.(type) {
 	case *dag.ProtoNode:

@@ -36,6 +36,8 @@ const depthRepeat = 4
 // Layout builds a new DAG with the trickle format using the provided
 // DagBuilderHelper. See the module's description for a more detailed
 // explanation.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/trickle.Layout
 func Layout(db *h.DagBuilderHelper) (ipld.Node, error) {
 	newRoot := db.NewFSNodeOverDag(ft.TFile)
 	root, _, err := fillTrickleRec(db, newRoot, -1)
@@ -87,6 +89,8 @@ func fillTrickleRec(db *h.DagBuilderHelper, node *h.FSNodeOverDag, maxDepth int)
 }
 
 // Append appends the data in `db` to the dag, using the Trickledag format
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/trickle.Append
 func Append(ctx context.Context, basen ipld.Node, db *h.DagBuilderHelper) (out ipld.Node, errOut error) {
 	base, ok := basen.(*dag.ProtoNode)
 	if !ok {
@@ -276,6 +280,8 @@ func trickleDepthInfo(node *h.FSNodeOverDag, maxlinks int) (depth int, repeatNum
 }
 
 // VerifyParams is used by VerifyTrickleDagStructure
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/trickle.VerifyParams
 type VerifyParams struct {
 	Getter      ipld.NodeGetter
 	Direct      int
@@ -286,6 +292,8 @@ type VerifyParams struct {
 
 // VerifyTrickleDagStructure checks that the given dag matches exactly the trickle dag datastructure
 // layout
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/trickle.VerifyTrickleDagStructure
 func VerifyTrickleDagStructure(nd ipld.Node, p VerifyParams) error {
 	return verifyTDagRec(nd, -1, p)
 }

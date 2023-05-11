@@ -18,10 +18,13 @@ import (
 	ipld "github.com/ipfs/go-ipld-format"
 )
 
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.ErrMissingFsRef
 var ErrMissingFsRef = errors.New("missing file path or URL, can't create filestore reference")
 
 // DagBuilderHelper wraps together a bunch of objects needed to
 // efficiently create unixfs dag trees
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.DagBuilderHelper
 type DagBuilderHelper struct {
 	dserv      ipld.DAGService
 	spl        chunker.Splitter
@@ -48,6 +51,8 @@ type DagBuilderHelper struct {
 
 // DagBuilderParams wraps configuration options to create a DagBuilderHelper
 // from a chunker.Splitter.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.DagBuilderParams
 type DagBuilderParams struct {
 	// Maximum number of links per intermediate node
 	Maxlinks int
@@ -283,6 +288,8 @@ func (db *DagBuilderHelper) Maxlinks() int {
 // many possible node state combinations.
 //
 // TODO: Revisit the name.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.FSNodeOverDag
 type FSNodeOverDag struct {
 	dag  *dag.ProtoNode
 	file *ft.FSNode
@@ -308,6 +315,8 @@ func (db *DagBuilderHelper) NewFSNFromDag(nd *dag.ProtoNode) (*FSNodeOverDag, er
 }
 
 // NewFSNFromDag reconstructs a FSNodeOverDag node from a given dag node
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer/helpers.NewFSNFromDag
 func NewFSNFromDag(nd *dag.ProtoNode) (*FSNodeOverDag, error) {
 	mb, err := ft.FSNodeFromBytes(nd.Data())
 	if err != nil {

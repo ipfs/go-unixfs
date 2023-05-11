@@ -13,9 +13,13 @@ import (
 
 // Common errors
 var (
-	ErrIsDir            = errors.New("this dag node is a directory")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ErrIsDir
+	ErrIsDir = errors.New("this dag node is a directory")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ErrCantReadSymlinks
 	ErrCantReadSymlinks = errors.New("cannot currently read symlinks")
-	ErrUnkownNodeType   = errors.New("unknown node type")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ErrUnkownNodeType
+	ErrUnkownNodeType = errors.New("unknown node type")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ErrSeekNotSupported
 	ErrSeekNotSupported = errors.New("file does not support seeking")
 )
 
@@ -26,6 +30,8 @@ var (
 // A DagReader provides read-only read and seek acess to a unixfs file.
 // Different implementations of readers are used for the different
 // types of unixfs/protobuf-encoded nodes.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.DagReader
 type DagReader interface {
 	ReadSeekCloser
 	Size() uint64
@@ -33,6 +39,8 @@ type DagReader interface {
 }
 
 // A ReadSeekCloser implements interfaces to read, copy, seek and close.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.ReadSeekCloser
 type ReadSeekCloser interface {
 	io.Reader
 	io.Seeker
@@ -42,6 +50,8 @@ type ReadSeekCloser interface {
 
 // NewDagReader creates a new reader object that reads the data represented by
 // the given node, using the passed in DAGService for data retrieval.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/io.NewDagReader
 func NewDagReader(ctx context.Context, n ipld.Node, serv ipld.NodeGetter) (DagReader, error) {
 	var size uint64
 

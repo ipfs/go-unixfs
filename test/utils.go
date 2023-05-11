@@ -21,6 +21,8 @@ import (
 )
 
 // SizeSplitterGen creates a generator.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.SizeSplitterGen
 func SizeSplitterGen(size int64) chunker.SplitterGen {
 	return func(r io.Reader) chunker.Splitter {
 		return chunker.NewSizeSplitter(r, size)
@@ -28,11 +30,15 @@ func SizeSplitterGen(size int64) chunker.SplitterGen {
 }
 
 // GetDAGServ returns a mock DAGService.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.GetDAGServ
 func GetDAGServ() ipld.DAGService {
 	return mdagmock.Mock()
 }
 
 // NodeOpts is used by GetNode, GetEmptyNode and GetRandomNode
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.NodeOpts
 type NodeOpts struct {
 	Prefix cid.Prefix
 	// ForceRawLeaves if true will force the use of raw leaves
@@ -43,10 +49,14 @@ type NodeOpts struct {
 
 // Some shorthands for NodeOpts.
 var (
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.UseProtoBufLeaves
 	UseProtoBufLeaves = NodeOpts{Prefix: mdag.V0CidPrefix()}
-	UseRawLeaves      = NodeOpts{Prefix: mdag.V0CidPrefix(), ForceRawLeaves: true, RawLeavesUsed: true}
-	UseCidV1          = NodeOpts{Prefix: mdag.V1CidPrefix(), RawLeavesUsed: true}
-	UseBlake2b256     NodeOpts
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.UseRawLeaves
+	UseRawLeaves = NodeOpts{Prefix: mdag.V0CidPrefix(), ForceRawLeaves: true, RawLeavesUsed: true}
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.UseCidV1
+	UseCidV1 = NodeOpts{Prefix: mdag.V1CidPrefix(), RawLeavesUsed: true}
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.UseBlake2b256
+	UseBlake2b256 NodeOpts
 )
 
 func init() {
@@ -56,6 +66,8 @@ func init() {
 }
 
 // GetNode returns a unixfs file node with the specified data.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.GetNode
 func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ipld.Node {
 	in := bytes.NewReader(data)
 
@@ -79,11 +91,15 @@ func GetNode(t testing.TB, dserv ipld.DAGService, data []byte, opts NodeOpts) ip
 }
 
 // GetEmptyNode returns an empty unixfs file node.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.GetEmptyNode
 func GetEmptyNode(t testing.TB, dserv ipld.DAGService, opts NodeOpts) ipld.Node {
 	return GetNode(t, dserv, []byte{}, opts)
 }
 
 // GetRandomNode returns a random unixfs file node.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.GetRandomNode
 func GetRandomNode(t testing.TB, dserv ipld.DAGService, size int64, opts NodeOpts) ([]byte, ipld.Node) {
 	in := io.LimitReader(u.NewTimeSeededRand(), size)
 	buf, err := io.ReadAll(in)
@@ -96,6 +112,8 @@ func GetRandomNode(t testing.TB, dserv ipld.DAGService, size int64, opts NodeOpt
 }
 
 // ArrComp checks if two byte slices are the same.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.ArrComp
 func ArrComp(a, b []byte) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("arrays differ in length. %d != %d", len(a), len(b))
@@ -109,6 +127,8 @@ func ArrComp(a, b []byte) error {
 }
 
 // PrintDag pretty-prints the given dag to stdout.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/test.PrintDag
 func PrintDag(nd *mdag.ProtoNode, ds ipld.DAGService, indent int) {
 	fsn, err := ft.FSNodeFromBytes(nd.Data())
 	if err != nil {

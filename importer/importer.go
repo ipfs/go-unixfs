@@ -13,6 +13,8 @@ import (
 
 // BuildDagFromReader creates a DAG given a DAGService and a Splitter
 // implementation (Splitters are io.Readers), using a Balanced layout.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer.BuildDagFromReader
 func BuildDagFromReader(ds ipld.DAGService, spl chunker.Splitter) (ipld.Node, error) {
 	dbp := h.DagBuilderParams{
 		Dagserv:  ds,
@@ -27,6 +29,8 @@ func BuildDagFromReader(ds ipld.DAGService, spl chunker.Splitter) (ipld.Node, er
 
 // BuildTrickleDagFromReader creates a DAG given a DAGService and a Splitter
 // implementation (Splitters are io.Readers), using a Trickle Layout.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/importer.BuildTrickleDagFromReader
 func BuildTrickleDagFromReader(ds ipld.DAGService, spl chunker.Splitter) (ipld.Node, error) {
 	dbp := h.DagBuilderParams{
 		Dagserv:  ds,

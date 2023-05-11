@@ -21,9 +21,12 @@ import (
 
 // Common errors
 var (
-	ErrSeekFail           = errors.New("failed to seek properly")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/mod.ErrSeekFail
+	ErrSeekFail = errors.New("failed to seek properly")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/mod.ErrUnrecognizedWhence
 	ErrUnrecognizedWhence = errors.New("unrecognized whence")
-	ErrNotUnixfs          = errors.New("dagmodifier only supports unixfs nodes (proto or raw)")
+	// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/mod.ErrNotUnixfs
+	ErrNotUnixfs = errors.New("dagmodifier only supports unixfs nodes (proto or raw)")
 )
 
 // 2MB
@@ -32,6 +35,8 @@ var writebufferSize = 1 << 21
 // DagModifier is the only struct licensed and able to correctly
 // perform surgery on a DAG 'file'
 // Dear god, please rename this to something more pleasant
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/mod.DagModifier
 type DagModifier struct {
 	dagserv ipld.DAGService
 	curNode ipld.Node
@@ -54,6 +59,8 @@ type DagModifier struct {
 // created nodes will be inhered from the passed in node.  If the Cid
 // version if not 0 raw leaves will also be enabled.  The Prefix and
 // RawLeaves options can be overridden by changing them after the call.
+//
+// Deprecated: use github.com/ipfs/boxo/ipld/unixfs/mod.NewDagModifier
 func NewDagModifier(ctx context.Context, from ipld.Node, serv ipld.DAGService, spl chunker.SplitterGen) (*DagModifier, error) {
 	switch from.(type) {
 	case *mdag.ProtoNode, *mdag.RawNode:

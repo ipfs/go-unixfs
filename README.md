@@ -1,17 +1,23 @@
 go-unixfs
 ==================
 
+> go-unixfs implements unix-like filesystem utilities on top of an ipld merkledag
+
 [![](https://img.shields.io/badge/made%20by-Protocol%20Labs-blue.svg?style=flat-square)](http://ipn.io)
 [![](https://img.shields.io/badge/project-IPFS-blue.svg?style=flat-square)](http://ipfs.io/)
 [![](https://img.shields.io/badge/freenode-%23ipfs-blue.svg?style=flat-square)](http://webchat.freenode.net/?channels=%23ipfs)
 [![Coverage Status](https://codecov.io/gh/ipfs/go-unixfs/branch/master/graph/badge.svg)](https://codecov.io/gh/ipfs/go-unixfs/branch/master)
 [![Travis CI](https://travis-ci.org/ipfs/go-unixfs.svg?branch=master)](https://travis-ci.org/ipfs/go-unixfs)
 
-> go-unixfs implements unix-like filesystem utilities on top of an ipld merkledag
+## ❗ This repo is no longer maintained.
 
-## Lead Maintainer
+👉 We highly recommend switching to the maintained version at https://github.com/ipfs/boxo/tree/main/ipld/unixfs.
 
-[Steven Allen](https://github.com/Stebalien)
+🏎️ Good news!  There is [tooling and documentation](https://github.com/ipfs/boxo#migrating-to-boxo) to expedite a switch in your repo. 
+
+⚠️ If you continue using this repo, please note that security fixes will not be provided (unless someone steps in to maintain it).
+
+📚 Learn more, including how to take the maintainership mantle or ask questions, [here](https://github.com/ipfs/boxo/wiki/Copied-or-Migrated-Repos-FAQ).
 
 ## Table of Contents
 

@@ -23,7 +23,6 @@ go-unixfs
 
 - [Directory](#directory)
 - [Install](#install)
-- [Contribute](#contribute)
 - [License](#license)
 
 ## Package Directory
@@ -60,12 +59,6 @@ The `test` subpackage provides several utilities to make testing unixfs related 
 ```sh
 go get github.com/ipfs/go-unixfs
 ```
-
-## Contribute
-
-PRs are welcome!
-
-Small note: If editing the Readme, please conform to the [standard-readme](https://github.com/RichardLitt/standard-readme) specification.
 
 ## License
 
